@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blueprint-smith"
+version = "0.1.0"
+description = "Generate and validate Factorio 2.0 + Space Age blueprint strings from JSON specs"
+requires-python = ">=3.10"
+# draftsman 4.x cannot load Factorio 2.0.x data (see CLAUDE.md) — keep below 4.
+dependencies = ["factorio-draftsman>=3.3.1,<4"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+blueprint-smith = "blueprint_smith.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
