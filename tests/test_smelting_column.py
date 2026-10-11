@@ -62,6 +62,49 @@ def test_spec_errors():
         build({"type": "smelting_column", "count": 1, "recipe": "not-a-recipe"})
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"rate": "7.5"},
+        {"rate": True},
+        {"rate": float("inf")},
+        {"count": True},
+        {"count": 2.0},
+        {"count": 2, "belt": "iron-chest"},
+        {"count": 2, "belt": ["transport-belt"]},
+        {"count": 2, "inserter": "transport-belt"},
+        {"count": 2, "pole": "iron-chest"},
+        {"count": 2, "furnace": "assembling-machine-3"},
+        {"count": 2, "recipe": ["iron-plate"]},
+    ],
+)
+def test_malformed_spec_values_are_spec_errors(bad):
+    with pytest.raises(SpecError):
+        build({"type": "smelting_column", **bad})
+
+
+def test_furnace_rejects_recipe_it_cannot_craft():
+    with pytest.raises(SpecError, match="can't craft 'electronic-circuit'"):
+        build({"type": "smelting_column", "count": 2, "recipe": "electronic-circuit"})
+    with pytest.raises(SpecError, match="can't craft"):
+        ratios.crafts_per_second("assembling-machine-1", "iron-plate")
+
+
+def test_input_demand_counts_ingredient_amounts():
+    assert ratios.ingredients_per_second("electric-furnace", "steel-plate") == {"iron-plate": pytest.approx(0.625)}
+    assert ratios.ingredients_per_second("electric-furnace", "stone-brick") == {"stone": pytest.approx(1.25)}
+
+    def demand_warnings(spec):
+        return [n for n in build({"type": "smelting_column", **spec}).notes if "demand" in n]
+
+    # steel: 5 iron plates per steel, so 3/s needs exactly one yellow belt (15/s) and 4/s needs 20/s
+    assert demand_warnings({"recipe": "steel-plate", "rate": 3}) == []
+    assert any("iron-plate demand 20.00/s" in n for n in demand_warnings({"recipe": "steel-plate", "rate": 4}))
+    # stone brick: 2 stone per brick
+    assert demand_warnings({"recipe": "stone-brick", "rate": 7.5}) == []
+    assert demand_warnings({"recipe": "stone-brick", "rate": 8})
+
+
 def test_checks_catch_missing_power_and_dangling_inserter():
     bp = Blueprint()
     bp.entities.append(new_entity("electric-furnace", tile_position=(2, 0)))
@@ -157,3 +200,14 @@ def test_cli_build_then_decode(tmp_path, capsys):
     bad = tmp_path / "bad.json"
     bad.write_text(json.dumps({"type": "smelting_column"}))
     assert main(["build", str(bad)]) == 2
+
+
+def test_cli_bad_spec_input_exits_2(tmp_path, capsys):
+    broken = tmp_path / "broken.json"
+    broken.write_text('{"type": ')
+    assert main(["build", str(broken)]) == 2
+    assert main(["build", str(tmp_path / "missing.json")]) == 2
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text(json.dumps({"type": "smelting_column", "rate": "7.5"}))
+    assert main(["build", str(wrong)]) == 2
+    assert capsys.readouterr().err.count("spec error:") == 3

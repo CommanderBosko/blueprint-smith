@@ -10,10 +10,19 @@ from .errors import BuildError, SpecError
 from .pipeline import build
 
 
+def _load_spec(path: str):
+    try:
+        if path == "-":
+            return json.load(sys.stdin)
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        raise SpecError(f"can't read {path}: {e}") from None
+
+
 def _cmd_build(args) -> int:
     try:
-        spec = json.load(sys.stdin if args.spec == "-" else open(args.spec))
-        result = build(spec)
+        result = build(_load_spec(args.spec))
     except SpecError as e:
         print(f"spec error: {e}", file=sys.stderr)
         return 2

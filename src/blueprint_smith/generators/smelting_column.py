@@ -18,11 +18,16 @@ ORE_X, IN_X, FURNACE_X, OUT_X, PLATE_X = 0, 1, 2, 5, 6
 FURNACE_SIZE = 3
 
 
+def _entity(spec: dict, key: str, default: str, kind: str) -> str:
+    """spec[key] (or `default`) must name an entity whose prototype type is `kind`."""
+    name = spec.get(key, default)
+    if not isinstance(name, str) or entities.raw.get(name, {}).get("type") != kind:
+        raise SpecError(f"'{key}' must name a {kind} entity, got {name!r}")
+    return name
+
+
 def _furnace_tiles(furnace: str) -> int:
-    try:
-        box = entities.raw[furnace]["collision_box"]
-    except KeyError:
-        raise SpecError(f"unknown furnace {furnace!r}") from None
+    box = entities.raw[furnace]["collision_box"]
     return round(box[1][0] - box[0][0] + 0.2)
 
 
@@ -46,11 +51,11 @@ def check_flow(bp) -> list[str]:
 
 @register("smelting_column", checks=(check_flow,))
 def smelting_column(spec: dict) -> tuple[list, list[str]]:
-    furnace = spec.get("furnace", "electric-furnace")
+    furnace = _entity(spec, "furnace", "electric-furnace", "furnace")
     recipe = spec.get("recipe", "iron-plate")
-    belt = spec.get("belt", "transport-belt")
-    inserter = spec.get("inserter", "fast-inserter")
-    pole = spec.get("pole", "medium-electric-pole")
+    belt = _entity(spec, "belt", "transport-belt", "transport-belt")
+    inserter = _entity(spec, "inserter", "fast-inserter", "inserter")
+    pole = _entity(spec, "pole", "medium-electric-pole", "electric-pole")
 
     if _furnace_tiles(furnace) != FURNACE_SIZE:
         raise SpecError(f"smelting_column only supports 3x3 furnaces (electric-furnace), got {furnace!r}")
@@ -60,12 +65,13 @@ def smelting_column(spec: dict) -> tuple[list, list[str]]:
     per_furnace = ratios.crafts_per_second(furnace, recipe)
     if "count" in spec:
         n = spec["count"]
-        if not isinstance(n, int) or n < 1:
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
             raise SpecError("'count' must be a positive integer")
     else:
-        if not spec["rate"] > 0:
-            raise SpecError("'rate' must be positive")
-        n = ratios.machines_for_rate(furnace, recipe, spec["rate"])
+        rate = spec["rate"]
+        if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not math.isfinite(rate) or rate <= 0:
+            raise SpecError("'rate' must be a positive number (plates per second)")
+        n = ratios.machines_for_rate(furnace, recipe, rate)
 
     out: list = []
     rows = n * FURNACE_SIZE
@@ -86,13 +92,16 @@ def smelting_column(spec: dict) -> tuple[list, list[str]]:
             out.append(new_entity(pole, tile_position=(OUT_X, y0 + 2)))
 
     total = n * per_furnace
-    notes = [f"{n} x {furnace}: {total:.3f} {recipe}/s ({per_furnace:.3f}/s each, base crafting speed, no modules)"]
+    demand = {item: n * r for item, r in ratios.ingredients_per_second(furnace, recipe).items()}
+    inputs = ", ".join(f"{r:.3f} {item}/s" for item, r in demand.items())
+    notes = [f"{n} x {furnace}: {total:.3f} {recipe}/s from {inputs} ({per_furnace:.3f}/s each, base crafting speed, no modules)"]
     lane = ratios.belt_lane_capacity(belt)
     if total > lane + 1e-9:
         notes.append(
             f"WARNING: output {total:.2f}/s exceeds one {belt} lane ({lane:.2f}/s) — inserters fill only the far lane, "
             f"so the plate belt will back up; use a faster belt or fewer furnaces (max ~{int(lane / per_furnace)})"
         )
-    if total > 2 * lane + 1e-9:
-        notes.append(f"WARNING: ore demand {total:.2f}/s exceeds the ore {belt} capacity ({2 * lane:.2f}/s)")
+    for item, r in demand.items():
+        if r > 2 * lane + 1e-9:
+            notes.append(f"WARNING: {item} demand {r:.2f}/s exceeds the input {belt} capacity ({2 * lane:.2f}/s)")
     return out, notes
