@@ -8,3 +8,6 @@ dist/
 *.log
 .idea/
 .vscode/
+*.pem
+*.key
+player-data.json
