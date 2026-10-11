@@ -12,6 +12,8 @@ Same 6-row module as the smelting column (paired inserters, T2), with a pole on 
 3 inserter columns: a medium pole reaches 3 tiles each way, so no single pole covers cols 1 and 5, or 5 and 9.
 No lane balancing (T1) on the steel belt: steel is a fifth of the ore input, so it can never fill
 even the one lane the output inserters drop onto.
+
+Ports: ore enters at the top of col 0; steel leaves at the bottom of col 10.
 """
 import math
 
@@ -20,8 +22,18 @@ from draftsman.entity import new_entity
 
 from .. import ratios
 from ..errors import SpecError
-from . import register
-from .columns import FURNACE_SIZE, MODULE_ROWS, POLE_ROW, column_furnace, entity_option, machine_count, modules
+from . import Port, register
+from .columns import (
+    FURNACE_SIZE,
+    MODULE_ROWS,
+    POLE_ROW,
+    column_furnace,
+    column_ports,
+    entity_option,
+    machine_count,
+    modules,
+    target_rate,
+)
 
 ORE_X, IN_X, IRON_X, MID_X, STEEL_X, OUT_X, STEEL_BELT_X = 0, 1, 2, 5, 6, 9, 10
 IRON_COLS = set(range(IRON_X, IRON_X + FURNACE_SIZE))
@@ -70,7 +82,7 @@ def check_flow(bp) -> list[str]:
 
 
 @register("steel_column", checks=(check_flow,))
-def steel_column(spec: dict) -> tuple[list, list[str]]:
+def steel_column(spec: dict) -> tuple[list, list[str], list[Port]]:
     furnace = column_furnace(spec, "steel_column")
     belt = entity_option(spec, "belt", "transport-belt", "transport-belt")
     inserter = entity_option(spec, "inserter", "fast-inserter", "inserter")
@@ -98,8 +110,10 @@ def steel_column(spec: dict) -> tuple[list, list[str]]:
             for x in FLOW:
                 out.append(new_entity(inserter, tile_position=(x, row), direction=Direction.WEST))
 
-    steel = n * ratios.crafts_per_second(furnace, "steel-plate")
-    ore = n * ratios.ingredients_per_second(furnace, "iron-plate")["iron-ore"]
+    per_pair = ratios.crafts_per_second(furnace, "steel-plate")
+    steel = n * per_pair
+    demand = {item: n * r for item, r in ratios.ingredients_per_second(furnace, "iron-plate").items()}
+    ore = demand["iron-ore"]
     notes = [
         f"{n} x {furnace} (iron plate) feeding {n} x {furnace} (steel): {steel:.3f} steel-plate/s from {ore:.3f} iron-ore/s "
         f"({plates:.3f} plates/s through each pair, base crafting speed, no modules)"
@@ -110,4 +124,5 @@ def steel_column(spec: dict) -> tuple[list, list[str]]:
             f"WARNING: iron-ore demand {ore:.2f}/s exceeds the input {belt} capacity ({full:.2f}/s); "
             f"use a faster belt or fewer pairs (max ~{int(full / plates)})"
         )
-    return out, notes
+    ports = column_ports(n, belt, ORE_X, demand, STEEL_BELT_X, "steel-plate", target_rate(spec, n, per_pair))
+    return out, notes, ports

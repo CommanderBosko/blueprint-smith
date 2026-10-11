@@ -3,13 +3,16 @@
 Every column repeats a 6-row module of two 3x3 furnaces, A on top and B below. Their inserters pair up
 at the machine boundary (technique T2): A loads and unloads from its bottom row, B from its top row, so
 rows 0, 1, 4 and 5 of the inserter columns stay free for poles (row 1) and lane balancing.
+Both belts run south down every row of every module, so items enter at row 0 and leave at the last row.
 """
 import math
 
+from draftsman.constants import Direction
 from draftsman.data import entities
 
 from .. import ratios
 from ..errors import SpecError
+from . import Port
 
 FURNACE_SIZE = 3
 MODULE_ROWS = 2 * FURNACE_SIZE
@@ -48,6 +51,11 @@ def machine_count(spec: dict, generator: str, furnace: str, recipe: str, unit: s
     return ratios.machines_for_rate(furnace, recipe, rate)
 
 
+def target_rate(spec: dict, n: int, per_machine: float) -> float:
+    """The output a column must reach: the spec's 'rate', or what its 'count' machines make."""
+    return float(spec["rate"]) if "rate" in spec else n * per_machine
+
+
 def modules(n: int):
     """For an n-furnace column, yield each module's top row and its furnace slots as
     (furnace top row, inserter row) pairs. An odd n leaves the last module without B."""
@@ -55,3 +63,13 @@ def modules(n: int):
         y0 = m * MODULE_ROWS
         slots = ((y0, y0 + FURNACE_SIZE - 1), (y0 + FURNACE_SIZE, y0 + FURNACE_SIZE))
         yield y0, slots[: n - 2 * m]
+
+
+def column_ports(n: int, belt: str, in_x: int, inputs: dict[str, float], out_x: int, product: str, rate: float) -> list[Port]:
+    """Ports of an n-furnace column: each input item enters at the top of col `in_x`, `product` leaves
+    at the bottom of col `out_x` at `rate`/s. `inputs` maps item -> demand per second."""
+    last = math.ceil(n / 2) * MODULE_ROWS - 1
+    south = int(Direction.SOUTH)
+    ports = [Port("input", item, belt, (in_x, 0), south, r) for item, r in inputs.items()]
+    ports.append(Port("output", product, belt, (out_x, last), south, rate))
+    return ports

@@ -33,7 +33,7 @@ When you need a decision, choice, or clarification from the user — not just in
 
 ## Status
 
-Scaffolded around draftsman 3.3.1 with two generators: `smelting_column` (all 3 samples confirmed in-game) and `steel_column` (ore to steel by direct insertion; first sample confirmed in-game). `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`. Logistics and power & fluids generators are not started.
+Scaffolded around draftsman 3.3.1 with two generators: `smelting_column` (all 3 samples confirmed in-game) and `steel_column` (ore to steel by direct insertion; first sample confirmed in-game). `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`. **Next: the v2 blueprint optimizer** (`PROJECT_BRIEF.md`, v2 section, confirmed 2026-10-11). Milestone 1 is a headless evaluation harness. Logistics and power & fluids generators are paused.
 
 ## Techniques Catalog
 
@@ -46,19 +46,25 @@ Scaffolded around draftsman 3.3.1 with two generators: `smelting_column` (all 3 
 
 All via the venv (`.venv/bin/...`); the package is installed editable with `pip install -e ".[dev]"`.
 
-- Tests: `.venv/bin/pytest -q`. Single test: `.venv/bin/pytest -q tests/test_smelting_column.py::test_reversed_inserters_are_rejected`
+- Tests: `.venv/bin/pytest -q` (about 35 s, because the `harness`-marked tests run the real headless server; they skip when it isn't installed). Quick run without them: `.venv/bin/pytest -q -m "not harness"`. Single test: `.venv/bin/pytest -q tests/test_smelting_column.py::test_reversed_inserters_are_rejected`
 - Build a blueprint: `.venv/bin/blueprint-smith build examples/smelting_column.json` (`-` reads the spec from stdin, `-o FILE` writes the string). Notes go to stderr, the string to stdout. Exit codes: 0 ok, 1 failed validation, 2 bad spec.
+- Evaluate in the headless harness: `.venv/bin/blueprint-smith evaluate SPEC` (verdict on stdout), or `build SPEC --evaluate` (prints the string only if the verdict passes). `--research all` judges with every technology researched (default: none), and `--keep-run` keeps the run dir. Exit 3 means the harness couldn't run. `blueprint-smith install-server` downloads the 2.0.77 headless server into `~/.cache/blueprint-smith/`, and `$BPS_FACTORIO_SERVER` overrides its path.
 - Decode: `.venv/bin/blueprint-smith decode STRING` or `@file`. List types: `.venv/bin/blueprint-smith types`.
 - No linter is configured. `pyrightconfig.json` points editors at `.venv` and `src/`.
 
 ## Code architecture (`src/blueprint_smith/`)
 
 - `pipeline.build(spec)` is the single entry point: look up the generator by `spec["type"]`, build a draftsman `Blueprint`, then **turn every draftsman warning into a failure** (overlap, unknown entity, etc. only warn in draftsman) and run all checks. Any problem raises `BuildError`; a bad spec raises `SpecError`.
-- `generators/`: a generator is `spec -> (entities, notes)`, registered with `@register(name, checks=(...))`. Layout-specific checks go in `checks=` and are keyed by type name, so wrapping a generator in a test still applies them.
+- `generators/`: a generator is `spec -> (entities, notes, ports)`, registered with `@register(name, checks=(...))`. A `Port` is a belt end the harness feeds or drains. `pipeline.build` makes port tiles relative to the blueprint's top-left and fails a port that isn't on an open belt end. Layout-specific checks go in `checks=` and are keyed by type name, so wrapping a generator in a test still applies them.
 - `generators/columns.py`: building blocks shared by the furnace columns (spec options, `count`/`rate`, the 6-row A/B module).
 - `checks.py`: generic checks for every blueprint (inserter pickup/drop hit an entity, electric consumers are inside a pole's supply area). These can't tell a reversed inserter from a correct one. Direction/flow correctness is each generator's own `check_flow`.
 - `ratios.py`: machine counts and belt lane capacity from prototype data. Base crafting speed only, no modules or beacons yet.
-- Notes vs. errors: real throughput is best-effort, so it appears as `WARNING:` notes (for example a column whose output is more than its plate belt carries), never as failures.
+- Notes vs. errors: statically, real throughput is best-effort, so it appears as `WARNING:` notes (for example a column whose output is more than its plate belt carries), never as failures. The headless harness (amended P2) turns throughput into a hard pass/fail.
+- `harness/`: the headless evaluation harness (technique H1 in `docs/techniques.md`).
+  - `mod/control.lua` is the in-game side: it pastes, feeds, powers and measures, then writes a JSON result.
+  - `runner.py` runs `--create` then `--benchmark` in a temp dir and parses the result. `verdict.py` judges it.
+  - `evaluate.py` picks the warmup and window and ties them together.
+  - Each run takes about 6 s, and runs can go in parallel. `pipeline.build` records warnings process-wide, so build serially and only run the harness in threads.
 
 Conventions worth knowing: an inserter's blueprint `direction` is the side it **picks up from**. Entities are placed by `tile_position` (top-left tile). Build entities with `draftsman.entity.new_entity(name, ...)`, since there is no per-entity class such as `ElectricFurnace`.
 
@@ -77,6 +83,7 @@ Claude Code acts as a Factorio blueprint crafter. Claude writes a JSON spec. A P
 ## Environment facts
 
 - Factorio 2.0.77 with Space Age, at `~/.local/share/Steam/steamapps/common/Factorio` (data in `.../data`). Not on `PATH`.
+- The Steam install is the **Windows build under Proton** (`bin/x64/factorio.exe`, Proton prefix `compatdata/427520`). There is no native Linux binary, so headless runs need the Linux headless server. The offline Lua API docs for 2.0.77 are in `.../Factorio/doc-html/`.
 - User dir `~/.factorio` has 65 mods in `mods/`; `mods/mod-list.json` lists which are enabled. The mod list is already on disk, so no screenshot is needed.
 - Python is the chosen language. Venv at `.venv` (Python 3.14) with `factorio-draftsman<4`. Do NOT upgrade to draftsman 4.x: it can't load 2.0.77 data. Regenerate its data with `.venv/bin/draftsman -p ~/.local/share/Steam/steamapps/common/Factorio/data update --no-mods`.
 - Draftsman API gotchas: import with `Blueprint.from_string(s)` (`Blueprint(s)` sets the label); validation only emits warnings, so the CLI must escalate `OverlappingObjectsWarning`/`UnknownEntityWarning` to failures.
@@ -84,4 +91,4 @@ Claude Code acts as a Factorio blueprint crafter. Claude writes a JSON spec. A P
 
 ## Out of scope for v1
 
-Base/city-block planning, live game integration (RCON), GUI/web front end, belt-perfect optimization, Space Age planet/platform builds, and tested mod support (stretch goal).
+Base/city-block planning, live game integration (RCON, the user's game or saves), GUI/web front end, Space Age planet/platform builds, and tested mod support (stretch goal). v2 allows in-game scripting for the headless harness only, and replaces "no belt-perfect optimization" with the harness pass bar.

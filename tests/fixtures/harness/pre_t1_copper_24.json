@@ -1,0 +1,29 @@
+{
+ "source": "git f1d113a smelting_column {\"type\": \"smelting_column\", \"recipe\": \"copper-plate\", \"rate\": 15, \"belt\": \"fast-transport-belt\"}",
+ "in_game": "In-game 2026-10-11 (old single-sided layout): every plate on one lane (F1); ate only half of a full red belt of ore.",
+ "ports": [
+  {
+   "role": "input",
+   "item": "copper-ore",
+   "belt": "fast-transport-belt",
+   "tile": [
+    0,
+    0
+   ],
+   "direction": 8,
+   "rate": 0.0
+  },
+  {
+   "role": "output",
+   "item": "copper-plate",
+   "belt": "fast-transport-belt",
+   "tile": [
+    6,
+    71
+   ],
+   "direction": 8,
+   "rate": 15.0
+  }
+ ],
+ "blueprint": "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"
+}

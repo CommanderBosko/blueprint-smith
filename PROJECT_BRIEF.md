@@ -13,7 +13,7 @@ Just the author.
 - Claude writes a JSON spec.
 - The Python CLI generates entities, validates, and encodes the string.
 - The CLI returns a failure report that Claude fixes and re-runs.
-- Layouts come from parametric generators/templates, not freeform placement.
+- Layouts come from parametric generators/templates, not freeform placement. (Freeform placement is a v2 stretch goal; see below.)
 
 ## v1 staging
 1. **Production lines** (first milestone).
@@ -28,14 +28,14 @@ Just the author.
 
 ## Acceptance (two-tier)
 - **Guaranteed by tooling:** valid string, round-trips, no collisions, connected, ratios computed.
-- **Best-effort:** real throughput (belt merging, fluid flow and inserter timing aren't statically provable).
+- **Best-effort:** real throughput (belt merging, fluid flow and inserter timing aren't statically provable). *v2:* a headless harness run turns throughput into a hard pass/fail (see below).
 - **Done:** about 3 sample specs per shipped type import into the game without error and run as specified. The user confirms in-game and reports failures.
 
 ## Out of scope
 - City-block/base planning.
-- Live game integration (RCON, in-game scripting).
+- Live game integration (RCON, connecting to the user's game or saves). *v2:* in-game scripting is allowed for the headless evaluation harness only.
 - GUI/web front end.
-- Belt-perfect optimization.
+- Belt-perfect optimization. *v2:* replaced by the harness bar below.
 - Space Age planet/platform builds until the core types work.
 - Mods are a **stretch goal**: the loader should be mod-aware, but v1 done covers vanilla + Space Age only.
 
@@ -48,3 +48,70 @@ Just the author.
 - Prototype data lives in Lua and needs the data stage to run, so it isn't plain JSON. Options: run `factorio --dump-data` (writes `data-raw-dump.json`) or parse the Lua.
 - Mod data variety.
 - Spatial correctness of generated layouts.
+
+---
+
+# v2: Blueprint Optimizer
+
+*Confirmed by the user 2026-10-11, after an interview and an independent review. Amends the v1 sections above where marked. This is the next work; the logistics and power & fluids generators are paused.*
+
+## Goal
+The user asks in plain words, e.g. *"fill a turbo belt of green circuits"*. Claude writes the spec. The system chooses the machines, modules and beacons, lays out the blueprint, and verifies it in a headless run without the user importing it. Throughput is a hard bar. Among the layouts that pass, it minimises footprint: bounding-box tiles, including the input and output belts, with power use as the tiebreak.
+
+## Problem
+Every production line needs a hand-written generator, every blueprint needs the user's in-game test before it can be trusted, and `ratios.py` ignores modules and beacons.
+
+## Method
+Better blueprints are the goal; ML is optional. Module and beacon counts come from solver math. Layout uses whatever search or learned model works best. A trained model is used only where it beats search or solver methods.
+
+## Must-haves
+- **M1: Evaluator.**
+  - A headless harness (vanilla + Space Age) pastes the blueprint, feeds each declared input port at its belt's rate, powers it from an infinite source, and measures a steady-state window. *Amended 2026-10-11 after the spike: the window is max(60 s, 10 × the slowest craft cycle), and the warmup is max(2 min, 3 × belt transit, 10 × craft cycle), because furnaces fed together craft in step.*
+  - It reports four measures: output items/s against the target, fill of both output lanes, each machine's share of working ticks, and power satisfaction.
+  - Generators declare their input and output ports.
+- **Amended P2 (`docs/techniques.md`):** a harness run fails the build if output is below 98% of the target or any machine works less than 95% of ticks. Static-only builds keep their `WARNING:` notes. *Two more failures were added 2026-10-11 to catch jams that a machine's output buffer hides (F15): a machine whose output backs up by more than 3 items over the window, and crafted output that doesn't reach the output port (under 80% delivered).*
+- **M2: Solver and green circuits.**
+  - Module and beacon math with the standard meta: productivity modules in machines, speed modules in beacons.
+  - Defaults are the best available machine (the electromagnetic plant for circuits) and legendary machines, modules and beacons. A request can override any of these.
+  - A beaconed green-circuit layout, plus an optimiser over generator variants scored by the harness.
+- **Requests** are single blocks with their inputs on belts at the edge. If a request is ambiguous, Claude asks the user before building.
+
+## Nice-to-haves / stretch
+- The harness loads the user's enabled mods, if that isn't too difficult. Vanilla + Space Age is the must.
+- A Python simulator or static score, only if the harness is too slow for search.
+- **M3** (learning from existing blueprints, e.g. `blueprint-storage-2.dat`) and **M4** (freeform placement) stay stretch goals until each has a defined output and done test.
+
+## Out of scope
+- RCON or any connection to the user's live game or saves.
+- City-block planning, and chain-to-raw requests until logistics exists.
+- Gleba and other planet builds (bioflux, spoilage, nutrients) until the Nauvis types work.
+- New hand-written logistics or power & fluids generators (paused).
+- ML for its own sake.
+
+## Constraints
+- Python, using the existing pipeline. draftsman stays below version 4.
+- Factorio 2.0.77 + Space Age. The Steam install is the Windows build under Proton (`bin/x64/factorio.exe`), so the harness needs the native Linux headless server, pinned to the same version.
+- Hardware: 16 cores, 62 GB RAM, RTX 3070 (8 GB).
+- No deadline.
+
+## Definition of done
+- **M1:**
+  - The harness runs unattended and the time per run is measured.
+  - It reproduces three confirmed results: iron 15/s with both lanes full, steel 3/s from plates, and steel 3/s from ore with every furnace working.
+  - It reproduces copper 30/s, after the user re-checks in-game that the bottom furnaces aren't blocked.
+  - It catches the three confirmed failures:
+    - the pre-T1 copper layout filling one lane (git `f1d113a`)
+    - the pre-T1 steel layout's last furnaces blocked on output (git `f1d113a`, `examples/smelting_column_steel.json`)
+    - unwired poles (predates git; recreate by skipping the wiring step)
+- **M2 (the end goal):**
+  - "Fill a turbo belt of green circuits" produces a beaconed, standard-meta, electromagnetic-plant blueprint that passes the harness: at least 98% of 60/s, every machine working at least 95% of ticks.
+  - The optimiser returns the smallest passing variant.
+  - The user's spot-checks of the first few layouts it approves agree with the harness.
+
+## Risks
+- **Running the server:** it needs its own write directory, and an unattended run needs a start-run-exit flow.
+- **Run time:** time per harness run is unknown.
+- **Quality data:** draftsman 3.3.1 may not carry quality stats or encode module requests with quality.
+- **2.0 beacon rules:** 1/√n diminishing returns and the recipe productivity cap must be modelled correctly.
+- **Mods gap:** the harness runs vanilla, and every past in-game confirmation was in the user's modded game (67 enabled mods, including `long_stack_inserter` and `squeak-through-2`).
+- **Calibration:** the set is all furnaces. There is no ground truth for assemblers or beacons until the M2 spot-checks.

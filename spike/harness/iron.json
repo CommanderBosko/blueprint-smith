@@ -1,0 +1,6 @@
+{
+  "type": "smelting_column",
+  "recipe": "iron-plate",
+  "rate": 15,
+  "label": "Iron smelting 15/s"
+}

@@ -110,9 +110,9 @@ def _mutated(monkeypatch, mutate):
     orig = generators.REGISTRY["steel_column"]
 
     def wrapper(spec):
-        entities, notes = orig(spec)
+        entities, notes, ports = orig(spec)
         mutate(entities)
-        return entities, notes
+        return entities, notes, ports
 
     monkeypatch.setitem(generators.REGISTRY, "steel_column", wrapper)
 

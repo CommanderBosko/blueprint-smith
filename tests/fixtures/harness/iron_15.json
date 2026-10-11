@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "build": {"ghosts_left": 0, "proxies_left": 0, "errors": {}},
+  "ticks": {"warmup": 7200, "window": 3600},
+  "outputs": [
+    {"item": "iron-plate", "count": 900, "rate": 15.0, "lane_rates": [7.566666666666666, 7.55]}
+  ],
+  "machines": [
+    {"name": "electric-furnace", "position": [3.5, 1.5], "working": 1.0, "statuses": {"working": 3600}},
+    {"name": "electric-furnace", "position": [3.5, 4.5], "working": 0.99, "statuses": {"working": 3564, "no_ingredients": 36}},
+    {"name": "electric-furnace", "position": [3.5, 7.5], "working": 1.0, "statuses": {"normal": 3600}}
+  ],
+  "power": {"harness_linked": true, "unpowered_machine_ticks": 0, "other_networks": 0},
+  "series": [14.9, 15.0, 15.1, 15.0, 15.0, 15.0],
+  "log": ["revived=252 origin=(-4,-36) proxies=0 ghosts_left=0"]
+}

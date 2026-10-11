@@ -30,6 +30,7 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 ### P2. Two-tier acceptance
 - **Guaranteed by the tooling:** a valid string that round-trips, no collisions, everything connected and powered, ratios computed.
 - **Best-effort:** real throughput. Report it as `WARNING:` notes, never as failures, and never claim more than that. *From `PROJECT_BRIEF.md`.*
+- **Amended for v2, in effect since 2026-10-11 (H1):** a headless harness run (`blueprint-smith evaluate`, `build --evaluate`) is a hard pass/fail. It fails if the crafted output is below 98% of the target, any machine works less than 95% of the window, any machine's output backs up (more than 3 items gained), or less than 80% of the crafted output reaches the output port. Builds checked only statically keep the `WARNING:` notes.
 
 ## Game mechanics
 
@@ -48,6 +49,9 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 | F11 | One belt lane carries `speed x 60 x 4` items/s: 7.5 yellow, 15 red, 22.5 blue, 30 turbo. A full belt carries double. | Prototype data (`ratios.belt_lane_capacity`); full yellow belt (15/s) confirmed in-game 2026-10-11 (iron, both lanes full) |
 | F12 | Electric furnace: 3x3, crafting speed 2. Iron and copper plate take 3.2 s (0.625/s each); steel takes 16 s and 5 iron plates (0.125/s each). So one iron furnace makes exactly what one steel furnace eats (0.625 plates/s), at any crafting speed. | Prototype data; iron confirmed in-game 2026-10-11 (24 furnaces filled both lanes of a yellow belt); 1:1 pairing confirmed in-game 2026-10-11 (steel column, every furnace running) |
 | F13 | **Furnaces pick their recipe from their input:** ore makes plates, iron plates make steel. Blueprints don't set a furnace recipe. | Confirmed in-game 2026-10-11 (steel column: ore-fed furnaces made plates, plate-fed furnaces made steel) |
+| F14 | **Research changes throughput.** Space Age's steel-plate productivity research adds +10% steel at level 1, and inserter capacity research raises hand size. `ratios.py` assumes no research, so the harness defaults to none (`--research all` researches everything). | Headless 2.0.77, 2026-10-11 (steel furnaces made 11 crafts in 80 s with all research, 10 without) |
+| F15 | **A machine buffers a stack of output** (100 plates is about 160 s of an iron furnace, 800 s of a steel one). A furnace whose output is blocked keeps crafting into that buffer and still reads "working", so a jam can hide for minutes. Watch the buffer grow instead. | Headless 2.0.77, 2026-10-11 (pre-T1 copper asked for 30/s: every furnace "working" while the bottom 24 gained 38 plates each) |
+| F16 | **A script-revived blueprint keeps** splitter `output_priority` and the copper wires it carries, and fulfilling module requests by script keeps their quality. | Headless 2.0.77, 2026-10-11 |
 
 ## Techniques
 
@@ -128,7 +132,34 @@ col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)
 **Code:** `generators/steel_column.py`.
 **Enforced by:** `check_flow` (inserters move ore -> iron -> steel -> belt; every iron furnace has a steel partner; every furnace is loaded and unloaded; both belts flow south). Tests: `test_broken_layout_is_rejected` in `tests/test_steel_column.py`.
 
+### H1. Headless evaluation harness
+**Solves:** trusting a blueprint without the user importing it (v2 milestone 1, `PROJECT_BRIEF.md`).
+
+**How it works:**
+- The Factorio 2.0.77 headless server (Linux build, in `~/.cache/blueprint-smith/`; `blueprint-smith install-server` fetches it) runs a generated mod. The mod pastes the blueprint on a lab surface and revives it.
+- Each input port is fed by a loader of its belt's tier from an infinity chest. Each output port drains through a loader into a chest that is emptied every tick.
+- An energy interface on a pole is wired to the nearest blueprint pole.
+- The run gets a warmup of max(2 min, 3 × belt transit, 10 × slowest craft), then a window of max(60 s, 10 × slowest craft).
+- Over the window it measures:
+  - Crafted rate: each machine's finished crafts plus progress, so crafts finishing in step don't alias.
+  - Delivered rate and per-lane rate.
+  - Each machine's status share and output-buffer growth (F15).
+  - Power.
+
+**Status:**
+- Calibrated 2026-10-11 against every confirmed in-game result. Iron 15/s, copper 30/s and both steel samples pass at exactly their target, both lanes full where T1 applies.
+- Pre-T1 copper puts every plate on one lane (F1). Asked for a full belt it backs up, and unwired poles fail (F6).
+- **Pre-T1 steel disagrees with the game** (see open questions).
+- About 6 s per run, and runs work in parallel.
+
+**Code:** `src/blueprint_smith/harness/` (`mod/control.lua`, `runner.py`, `verdict.py`, `server.py`), `evaluate.py` (timing). Plan and spike notes: `docs/m1-harness-plan.md`.
+**Enforced by:** `tests/test_harness_calibration.py` (real server; skipped without one), `tests/test_harness_runner.py`, `tests/test_cli_evaluate.py`.
+
 ## Open questions
 
 - How close to a full belt does T1 really get at the bottom of a long column? On a 24-furnace yellow column (iron 15/s), it reaches 100% of both lanes with every furnace unloading. The 48-furnace red column (copper 30/s) came out correctly, but nobody checked whether its bottom furnaces were blocked. Faster belts and longer columns are still open.
 - Do other machine shapes (assemblers with several inputs, fluids) need a different balancing module? Revisit with the next generator.
+- **Pre-T1 steel: the harness and the game disagree.** In-game (old single-sided layout, output consumed downstream) the last few furnaces couldn't unload. In the harness, with a free-draining sink, every furnace works, even after 20 minutes and with all research. 3/s on one lane of a 7.5/s belt should leave plenty of gaps. Possible causes: the downstream consumer backed up, the startup burst, or a mod. `test_pre_t1_steel_jams_like_in_game` is a strict xfail until this is settled. *Low priority:* the user confirmed (2026-10-11) the jam only ever happened on the pre-splitter layout, and every current generator uses T1.
+- **Copper 30/s bottom furnaces:** never checked in-game for blocking. The harness says none are blocked, but the result only counts as ground truth once the user re-checks it.
+- **Research for real requests:** M1 judges with no research (F14). M2 requests default to the best tier and quality, so they probably want research too, and `ratios.py` would then have to model it.
+- **`products_finished` for multi-product recipes:** the harness multiplies crafts by product amount. That's right if the counter counts crafts; every recipe so far makes 1 item, so it's untested.

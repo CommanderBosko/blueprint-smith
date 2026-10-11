@@ -11,6 +11,8 @@ Output inserters only fill the plate belt's far (east) lane. Each splitter has o
 its west side, so plates go out west first, turn east and side-load onto the near (west) lane;
 only once that lane is full do they continue east. The far lane, where the inserters drop, stays
 as empty as possible, and both lanes end up full.
+
+Ports: ore enters at the top of col 0; plates leave at the bottom of col 6, below the last splitter.
 """
 import math
 
@@ -20,8 +22,18 @@ from draftsman.entity import new_entity
 
 from .. import ratios
 from ..errors import SpecError
-from . import register
-from .columns import FURNACE_SIZE, MODULE_ROWS, POLE_ROW, column_furnace, entity_option, machine_count, modules
+from . import Port, register
+from .columns import (
+    FURNACE_SIZE,
+    MODULE_ROWS,
+    POLE_ROW,
+    column_furnace,
+    column_ports,
+    entity_option,
+    machine_count,
+    modules,
+    target_rate,
+)
 
 ORE_X, IN_X, FURNACE_X, OUT_X, PLATE_X = 0, 1, 2, 5, 6
 SPLITTER_ROW, SIDELOAD_ROW = 4, 5
@@ -80,7 +92,7 @@ def check_flow(bp) -> list[str]:
 
 
 @register("smelting_column", checks=(check_flow,))
-def smelting_column(spec: dict) -> tuple[list, list[str]]:
+def smelting_column(spec: dict) -> tuple[list, list[str], list[Port]]:
     furnace = column_furnace(spec, "smelting_column")
     recipe = spec.get("recipe", "iron-plate")
     belt = entity_option(spec, "belt", "transport-belt", "transport-belt")
@@ -126,4 +138,5 @@ def smelting_column(spec: dict) -> tuple[list, list[str]]:
     for item, r in demand.items():
         if r > full + 1e-9:
             notes.append(f"WARNING: {item} demand {r:.2f}/s exceeds the input {belt} capacity ({full:.2f}/s)")
-    return out, notes
+    ports = column_ports(n, belt, ORE_X, demand, PLATE_X, recipe, target_rate(spec, n, per_furnace))
+    return out, notes, ports

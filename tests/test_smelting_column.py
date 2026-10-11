@@ -203,7 +203,7 @@ def test_warnings_become_build_errors(monkeypatch):
     from blueprint_smith import generators
 
     def overlapping(spec):
-        return [new_entity("electric-furnace", tile_position=(0, 0)), new_entity("electric-furnace", tile_position=(1, 1))], []
+        return [new_entity("electric-furnace", tile_position=(0, 0)), new_entity("electric-furnace", tile_position=(1, 1))], [], []
 
     monkeypatch.setitem(generators.REGISTRY, "overlap", overlapping)
     with pytest.raises(BuildError) as ei:
@@ -217,9 +217,9 @@ def _mutated(monkeypatch, mutate):
     orig = generators.REGISTRY["smelting_column"]
 
     def wrapper(spec):
-        entities, notes = orig(spec)
+        entities, notes, ports = orig(spec)
         mutate(entities)
-        return entities, notes
+        return entities, notes, ports
 
     monkeypatch.setitem(generators.REGISTRY, "smelting_column", wrapper)
 

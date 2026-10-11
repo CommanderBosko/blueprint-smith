@@ -18,10 +18,16 @@
   - `examples/smelting_column_steel.json`: 24 furnaces, steel, 3/s from 15 iron plates/s. Ate the full yellow input belt, but the last few furnaces couldn't unload because the far lane of the plate belt was full.
 - Public GitHub repo `CommanderBosko/blueprint-smith` (MIT), branch `main`, SSH remote. No linter configured.
 
+**2026-10-11: v2 milestone 1, the headless evaluation harness, works.**
+- `blueprint-smith evaluate SPEC` and `build --evaluate` run a blueprint in a real Factorio 2.0.77 headless server (Linux build, in `~/.cache/blueprint-smith/`) and fail on the amended P2 bar.
+- It is calibrated against every in-game result: all 4 samples pass at exactly their target, pre-T1 copper shows one lane, and unwired poles fail.
+- Open: the pre-T1 steel jam doesn't reproduce, and copper 30/s is still awaiting the user's in-game re-check.
+- 188 tests (1 strict xfail). See `docs/techniques.md` H1 and `docs/m1-harness-plan.md`.
+
 ## Current Goals
 
-- **Short term (next 1-3 sessions):** 2 more `steel_column` samples to meet the brief's 3 per type; then an assembler line or the first logistics piece; test mod loading.
-- **Long term:** production lines, logistics, then power & fluids (see `PROJECT_BRIEF.md`); mods as a stretch goal.
+- **Short term (next 1-3 sessions):** v2 optimizer milestone 1, the headless evaluation harness (`PROJECT_BRIEF.md`, v2 section, confirmed 2026-10-11). Still open from v1: 2 more `steel_column` samples.
+- **Long term:** v2 milestone 2 (module/beacon solver, beaconed green circuits, an optimiser scored by the harness); M3/M4 are stretch goals. Logistics and power & fluids generators are paused.
 
 ## Recent Decisions
 

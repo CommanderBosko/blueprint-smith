@@ -1,0 +1,29 @@
+{
+ "source": "git f1d113a smelting_column {\"type\": \"smelting_column\", \"recipe\": \"copper-plate\", \"rate\": 30, \"belt\": \"fast-transport-belt\"}",
+ "in_game": "Not built in-game. The old layout asked for a full red belt: F1 (confirmed) puts every plate on one lane, which carries 15/s.",
+ "ports": [
+  {
+   "role": "input",
+   "item": "copper-ore",
+   "belt": "fast-transport-belt",
+   "tile": [
+    0,
+    0
+   ],
+   "direction": 8,
+   "rate": 0.0
+  },
+  {
+   "role": "output",
+   "item": "copper-plate",
+   "belt": "fast-transport-belt",
+   "tile": [
+    6,
+    143
+   ],
+   "direction": 8,
+   "rate": 30.0
+  }
+ ],
+ "blueprint": "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"
+}
