@@ -33,7 +33,7 @@ When you need a decision, choice, or clarification from the user — not just in
 
 ## Status
 
-Scaffolded around draftsman 3.3.1 with two generators: `smelting_column` (all 3 samples confirmed in-game) and `steel_column` (ore to steel by direct insertion; first sample confirmed in-game). `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`. **Next: the v2 blueprint optimizer** (`PROJECT_BRIEF.md`, v2 section, confirmed 2026-10-11). Milestone 1 is a headless evaluation harness. Logistics and power & fluids generators are paused.
+Scaffolded around draftsman 3.3.1 with two generators: `smelting_column` (all 3 samples confirmed in-game) and `steel_column` (ore to steel by direct insertion; first sample confirmed in-game). `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`. **Now: the v2 blueprint optimizer** (`PROJECT_BRIEF.md`, v2 section, confirmed 2026-10-11). Milestone 1, the headless evaluation harness, is done. **Next: milestone 2** from `docs/m2-plan.md`, starting with pieces A, C and D in parallel. Logistics and power & fluids generators are paused.
 
 ## Techniques Catalog
 

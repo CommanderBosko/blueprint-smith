@@ -1,3 +1,41 @@
+## Session: 2026-10-11 (afternoon) — Repo, lane balancing, steel_column, headless harness, M2 plan
+
+**Focus**: Finish the smelting samples in-game, add steel from ore, then turn "an ML algorithm to optimise blueprints" into a scoped v2 and build its first milestone.
+
+This close spans several sessions since the previous close, which ran before `git init`.
+
+### What changed (and why)
+- **Repo:** `git init` and a public MIT repo, `CommanderBosko/blueprint-smith`.
+- **Spec bugs from probing edge cases:** a furnace accepted recipes it can't craft. The input-belt warning ignored ingredient amounts (steel at 4/s needs 20 plates/s). Malformed specs crashed instead of exiting 2.
+- **Lane balancing (T1):** an inserter drops only onto a belt's far lane, so the old column filled one lane and blocked its last furnaces in-game. The user showed a layout with a west-priority splitter and a side-load every 2 furnaces. All 3 smelting samples then passed in-game at full belt. `docs/techniques.md` became the catalog of everything learned, and `CLAUDE.md` now requires reading it first.
+- **`steel_column`:** the user wanted steel made from ore. Each iron furnace feeds the steel furnace beside it by direct insertion, at an exact 1:1 rate. It ran in-game with every furnace working. Adding it exposed a bug: `power_coverage` measured pole reach from the pole's edge instead of its centre.
+- **v2 brief:** the interview and an independent review turned the ML request into a search-and-harness optimizer. ML is used only where it beats search or the solver. The confirmed brief is in the v2 section of `PROJECT_BRIEF.md`.
+- **M1, the headless harness:** a Linux 2.0.77 headless server pastes, feeds, powers and measures a blueprint in about 6 s. It reproduces every in-game result except the pre-T1 steel jam.
+- **M2 planned:** `docs/m2-plan.md`. One legendary electromagnetic plant with 2 beacons makes about 250 circuits/s, so the 240/s block is limited by inserters and belts.
+- **Shipped:** PR #1 merged with a merge commit, and the feature branch deleted.
+- **Secret scan:** this close added a `/secret-scan` skill and ran it. Tree and history are clean.
+
+### Decisions
+- The harness uses the Linux headless server, because the Steam copy is the Windows build under Proton.
+- Amended P2: a harness failure fails the build.
+- Output is judged on what the machines crafted. Two extra failures: a machine whose output backs up, and output that never reaches the belt end.
+- The harness assumes no research by default; with everything researched, steel productivity research adds 10%.
+- M2 machine bar (user): fail only when blocked on output, because beacon steps make exact sizing impossible.
+
+### Issues / surprises
+- A blueprint string retyped by hand into a reply looped and came out corrupted. Strings now go out only as file paths or `wl-copy` commands.
+- The pre-T1 steel jam seen in-game doesn't reproduce in the harness (strict xfail).
+- Loaders can't output stacked items, so M2's harness has to feed stacked belts by script.
+- The transcript scan was misleading at first: piping it through `head -c` cut it off, and a relative project path made it fall back to one transcript.
+
+### Next session
+- M2 pieces A (harness), C (solver) and D (checks) in parallel, then B, E and F.
+- In-game, for the user: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples.
+
+**Commits**: `9a03f8a..c0d4def` (8 commits, including the PR #1 merge)
+
+---
+
 ## Session: 2026-10-11 — First in-game test; pole wiring fix
 
 **Focus**: Import the smelting column in-game and fix what broke.
