@@ -1,0 +1,6 @@
+{
+  "type": "smelting_column",
+  "recipe": "steel-plate",
+  "rate": 3,
+  "label": "Steel smelting 3/s"
+}

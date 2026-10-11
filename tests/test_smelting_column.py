@@ -1,4 +1,5 @@
 import json
+import math
 
 import pytest
 from draftsman.blueprintable import Blueprint
@@ -26,7 +27,10 @@ def test_column_builds_and_round_trips(count):
     kinds = [e.name for e in r.blueprint.entities]
     assert kinds.count("electric-furnace") == count
     assert kinds.count("fast-inserter") == 2 * count
-    assert kinds.count("transport-belt") == 2 * 3 * count
+    modules = math.ceil(count / 2)
+    # per 2-furnace module: 6 ore belt, 5 plate belt (the splitter takes one row), 1 side-load belt
+    assert kinds.count("transport-belt") == 12 * modules
+    assert kinds.count("splitter") == modules
     again = Blueprint.from_string(r.string).to_string()
     assert again == r.string
 
@@ -37,9 +41,44 @@ def test_rate_spec_sizes_the_column():
     assert not any("WARNING" in n for n in r.notes)
 
 
-def test_oversized_column_notes_one_lane_limit():
-    r = build({"type": "smelting_column", "count": 24})
-    assert any("exceeds one transport-belt lane" in n for n in r.notes)
+def test_plate_belt_limit_is_the_full_belt():
+    # lane balancing fills both lanes: 24 furnaces of iron is exactly a full yellow belt (15/s)
+    assert not any("WARNING" in n for n in build({"type": "smelting_column", "count": 24}).notes)
+    r = build({"type": "smelting_column", "count": 25})
+    assert any("exceeds the transport-belt capacity (15.00/s)" in n for n in r.notes)
+
+
+def test_full_red_belt_of_copper_needs_48_furnaces():
+    r = build({"type": "smelting_column", "recipe": "copper-plate", "rate": 30, "belt": "fast-transport-belt"})
+    kinds = [e.name for e in r.blueprint.entities]
+    assert kinds.count("electric-furnace") == 48
+    assert kinds.count("fast-splitter") == 24
+    assert not any("WARNING" in n for n in r.notes)
+
+
+def test_module_layout_balances_lanes():
+    from draftsman.constants import Direction
+
+    bp = build({"type": "smelting_column", "count": 2}).blueprint
+
+    def at(x, y):
+        return [e.name for e in bp.find_entities_filtered(position=(x + 0.5, y + 0.5))]
+
+    assert at(1, 1) == at(5, 1) == ["medium-electric-pole"]
+    assert at(1, 2) == at(1, 3) == at(5, 2) == at(5, 3) == ["fast-inserter"]
+    (splitter,) = bp.find_entities_filtered(name="splitter")
+    assert tuple(splitter.global_position) == (6.0, 4.5) and splitter.direction == Direction.SOUTH
+    assert splitter.output_priority == "right"  # west output, opposite the inserters' drop lane
+    (sideload,) = bp.find_entities_filtered(name="transport-belt", position=(5.5, 5.5))
+    assert sideload.direction == Direction.EAST
+    assert at(6, 5) == ["transport-belt"]
+
+
+def test_odd_count_leaves_last_module_half_empty():
+    bp = build({"type": "smelting_column", "count": 3}).blueprint
+    assert len(bp.find_entities_filtered(name="electric-furnace")) == 3
+    assert not bp.find_entities_filtered(position=(3.5, 10.5))  # where the 4th furnace would sit
+    assert len(bp.find_entities_filtered(name="splitter")) == 2
 
 
 def test_inserters_move_west_to_east():
@@ -179,6 +218,33 @@ def test_reversed_inserters_are_rejected(monkeypatch):
     with pytest.raises(BuildError) as ei:
         build({"type": "smelting_column", "count": 2})
     assert any("moves the wrong way" in p for p in ei.value.problems)
+
+
+@pytest.mark.parametrize(
+    "mutate, message",
+    [
+        (lambda e: setattr(e, "direction", 0) if e.name == "splitter" else None, "must face south across cols"),
+        (lambda e: setattr(e, "output_priority", "none") if e.name == "splitter" else None, "must prioritise its west output"),
+        (lambda e: setattr(e, "output_priority", "left") if e.name == "splitter" else None, "must prioritise its west output"),
+        (lambda e: setattr(e, "direction", 8) if e.name == "transport-belt" and e.global_position[0] == 5.5 else None,
+         "must face east under a splitter"),
+    ],
+)
+def test_broken_lane_balancing_is_rejected(monkeypatch, mutate, message):
+    _mutated(monkeypatch, lambda entities: [mutate(e) for e in entities])
+    with pytest.raises(BuildError) as ei:
+        build({"type": "smelting_column", "count": 2})
+    assert any(message in p for p in ei.value.problems)
+
+
+def test_missing_sideload_belt_is_rejected(monkeypatch):
+    def drop_sideload(entities):
+        entities[:] = [e for e in entities if not (e.name == "transport-belt" and e.global_position[0] == 5.5)]
+
+    _mutated(monkeypatch, drop_sideload)
+    with pytest.raises(BuildError) as ei:
+        build({"type": "smelting_column", "count": 2})
+    assert any("no side-load belt under its west output" in p for p in ei.value.problems)
 
 
 def test_missing_poles_are_rejected(monkeypatch):

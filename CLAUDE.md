@@ -35,6 +35,13 @@ When you need a decision, choice, or clarification from the user — not just in
 
 Scaffolded around draftsman 3.3.1 with one generator (`smelting_column`). `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`. Logistics and power & fluids generators are not started.
 
+## Techniques Catalog
+
+`docs/techniques.md` holds everything learned about making good blueprints: the user's quality bar (P), game mechanics (F) and layout techniques (T), each with its in-game status, code location and enforcing check.
+- **Before designing or changing any generator,** read it and work through its design checklist. Combine the existing techniques rather than reinventing them.
+- **When the user teaches or corrects a technique** (often with an in-game screenshot), add or update its entry in the same session. Record how it was confirmed, then enforce it with a check and a mutation test.
+- **After each in-game test,** update the status of every entry the blueprint exercised.
+
 ## Commands
 
 All via the venv (`.venv/bin/...`); the package is installed editable with `pip install -e ".[dev]"`.
@@ -50,7 +57,7 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
 - `generators/`: a generator is `spec -> (entities, notes)`, registered with `@register(name, checks=(...))`. Layout-specific checks go in `checks=` and are keyed by type name, so wrapping a generator in a test still applies them.
 - `checks.py`: generic checks for every blueprint (inserter pickup/drop hit an entity, electric consumers are inside a pole's supply area). These can't tell a reversed inserter from a correct one. Direction/flow correctness is each generator's own `check_flow`.
 - `ratios.py`: machine counts and belt lane capacity from prototype data. Base crafting speed only, no modules or beacons yet.
-- Notes vs. errors: real throughput is best-effort, so it appears as `WARNING:` notes (for example the single-lane plate belt limit of 7.5/s on yellow belt), never as failures.
+- Notes vs. errors: real throughput is best-effort, so it appears as `WARNING:` notes (for example a column whose output is more than its plate belt carries), never as failures.
 
 Conventions worth knowing: an inserter's blueprint `direction` is the side it **picks up from**. Entities are placed by `tile_position` (top-left tile). Build entities with `draftsman.entity.new_entity(name, ...)`, since there is no per-entity class such as `ElectricFurnace`.
 

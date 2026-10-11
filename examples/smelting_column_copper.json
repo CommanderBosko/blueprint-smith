@@ -1,0 +1,7 @@
+{
+  "type": "smelting_column",
+  "recipe": "copper-plate",
+  "rate": 30,
+  "belt": "fast-transport-belt",
+  "label": "Copper smelting 30/s"
+}
