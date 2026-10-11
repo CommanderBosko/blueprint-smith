@@ -1,0 +1,29 @@
+{
+ "source": "git f1d113a smelting_column {\"type\": \"smelting_column\", \"recipe\": \"steel-plate\", \"rate\": 3}",
+ "in_game": "In-game 2026-10-11 (old layout, output consumed downstream): the last few furnaces couldn't unload.",
+ "ports": [
+  {
+   "role": "input",
+   "item": "iron-plate",
+   "belt": "transport-belt",
+   "tile": [
+    0,
+    0
+   ],
+   "direction": 8,
+   "rate": 0.0
+  },
+  {
+   "role": "output",
+   "item": "steel-plate",
+   "belt": "transport-belt",
+   "tile": [
+    6,
+    71
+   ],
+   "direction": 8,
+   "rate": 3.0
+  }
+ ],
+ "blueprint": "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"
+}

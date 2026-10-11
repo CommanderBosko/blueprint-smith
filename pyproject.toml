@@ -19,5 +19,10 @@ blueprint-smith = "blueprint_smith.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# The harness mod is copied into each headless run.
+"blueprint_smith.harness" = ["mod/*.lua", "mod/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["harness: runs blueprints in the real headless Factorio server (skipped when it isn't installed)"]
