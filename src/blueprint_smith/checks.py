@@ -21,7 +21,9 @@ def _electric(e) -> bool:
 
 
 def power_coverage(bp: Blueprint) -> list[str]:
-    """Every electric consumer must overlap the supply area of at least one pole."""
+    """Every electric consumer must overlap the supply area of at least one pole.
+    The supply area reaches `supply_area_distance` from the pole's centre, not its edge:
+    a medium pole (3.5) supplies 7x7, a big pole (2x2, distance 2) only 4x4."""
     poles = [e for e in bp.entities if e.prototype.get("type") == "electric-pole"]
     problems = []
     for e in bp.entities:
@@ -33,8 +35,7 @@ def power_coverage(bp: Blueprint) -> list[str]:
         for p in poles:
             d = p.prototype.get("supply_area_distance", 0)
             px, py = p.global_position
-            pw, ph = p.tile_width / 2, p.tile_height / 2
-            if abs(ex - px) < hw + pw + d - 1e-6 and abs(ey - py) < hh + ph + d - 1e-6:
+            if abs(ex - px) < hw + d - 1e-6 and abs(ey - py) < hh + d - 1e-6:
                 covered = True
                 break
         if not covered:

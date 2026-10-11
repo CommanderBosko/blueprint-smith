@@ -152,6 +152,24 @@ def test_checks_catch_missing_power_and_dangling_inserter():
     assert len(checks.inserter_wiring(bp)) == 2
 
 
+@pytest.mark.parametrize(
+    "pole, last",
+    [("medium-electric-pole", 3), ("small-electric-pole", 2), ("big-electric-pole", 2)],
+)
+def test_power_reach_is_measured_from_the_pole_centre(pole, last):
+    # The supply area spans supply_area_distance either side of the pole's centre: 7x7, 5x5, and only
+    # 4x4 for the 2x2 big pole. With the pole at tile (0, 0), an inserter at tile x=`last` is the
+    # furthest one east it powers.
+    def covered(x):
+        bp = Blueprint()
+        bp.entities.append(new_entity(pole, tile_position=(0, 0)))
+        bp.entities.append(new_entity("fast-inserter", tile_position=(x, 0)))
+        return not checks.power_coverage(bp)
+
+    assert covered(last)
+    assert not covered(last + 1)
+
+
 def test_pole_network_catches_unwired_and_overlong_wires():
     bp = Blueprint()
     bp.entities.append(new_entity("medium-electric-pole", tile_position=(0, 0)))

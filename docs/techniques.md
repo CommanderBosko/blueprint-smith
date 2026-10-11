@@ -14,9 +14,9 @@ Status labels:
 Run through this when designing a new generator or changing an old one. It's how the entries below get combined.
 
 1. **Size from the whole belt (P1).** Target rates use full-belt capacity (2 lanes, F11), not one lane. A column should be able to eat a full input belt.
-2. **Every belt that inserters unload onto from one side needs lane balancing (T1).** Otherwise only the far lane fills (F1).
+2. **Every belt that inserters unload onto from one side needs lane balancing (T1) if its output can exceed one lane.** Otherwise only the far lane fills (F1). Skip T1 when the output can never fill one lane (the steel column's output is a fifth of its input).
 3. **Input belts need nothing extra.** Inserters take from both lanes (F2).
-4. **Leave rows for poles (T2, T3).** The pipeline wires them (F6), and `pole_network` fails any pole it misses.
+4. **Leave rows for poles (T2, T3).** The pipeline wires them (F6), and `pole_network` fails any pole it misses. Supply reach is measured from the pole's centre (F10), so a medium pole covers 3 tiles either side of its own column.
 5. **Use facing-relative left/right for splitter priority (F5).** Never assume screen left.
 6. **Enforce every technique in code.** Each technique a generator uses gets an invariant in its `check_flow` and a mutation test that breaks the layout on purpose and expects the build to fail.
 7. **Share code, don't copy it.** When a second generator needs a technique, move it out of the first generator into a shared building block.
@@ -36,24 +36,25 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 | # | Fact | Status |
 |---|---|---|
 | F1 | **Inserters drop onto the far lane** of a belt. | Confirmed in-game 2026-10-11 (copper 15/s: every plate on one lane) |
-| F2 | **Inserters pick up from both lanes.** | Confirmed in-game 2026-10-11 (steel 3/s drained a full yellow belt of iron plates) |
-| F3 | **Side-loading:** a belt feeding into the side of another puts everything onto the receiving belt's near lane. | Confirmed in-game 2026-10-11 (T1) |
+| F2 | **Inserters pick up from both lanes.** | Confirmed in-game 2026-10-11 (steel 3/s drained a full yellow belt of iron plates, on both the old and lane-balanced layouts) |
+| F3 | **Side-loading:** a belt feeding into the side of another puts everything onto the receiving belt's near lane. | Confirmed in-game 2026-10-11 (T1: copper 30/s, iron 15/s, steel 3/s) |
 | F4 | **Splitters keep lanes:** an item leaves on the same lane it entered. | Game rule, relied on by T1; not tested separately |
 | F5 | **Splitter `output_priority` "left"/"right" is relative to the splitter's facing.** Facing south, `"right"` is the west output. | Confirmed in-game 2026-10-11 (priority arrows on the west half) |
 | F6 | **A pasted blueprint keeps only the wires it carries.** Poles inside it don't auto-connect, even within reach. | Confirmed in-game 2026-10-11 (11 of 12 poles dead before the pipeline added wires) |
 | F7 | An inserter's blueprint `direction` is the side it **picks up from**. | Prototype data; every in-game test so far flowed correctly |
 | F8 | Directions: N=0, NE=2, E=4, S=8, W=12. | Prototype data |
 | F9 | Underground belt `max_distance` is 5/7/9 tiles (total span, not the gap). | Prototype data |
-| F10 | Medium electric pole: 7x7 supply area, wire reach 9. | Prototype data; poles 6 rows apart confirmed in-game 2026-10-11 |
-| F11 | One belt lane carries `speed x 60 x 4` items/s: 7.5 yellow, 15 red, 22.5 blue, 30 turbo. A full belt carries double. | Prototype data (`ratios.belt_lane_capacity`) |
-| F12 | Electric furnace: 3x3, crafting speed 2. Iron and copper plate take 3.2 s (0.625/s each); steel takes 16 s and 5 iron plates (0.125/s each). | Prototype data |
+| F10 | Medium electric pole: 7x7 supply area, wire reach 9. The supply area spans `supply_area_distance` either side of the pole's **centre**, not its edge (small 5x5, medium 7x7, big 4x4, substation 18x18). | Prototype data; poles 6 rows apart confirmed in-game 2026-10-11. `power_coverage` measured from the edge until 2026-10-11, found by the steel column's mutation test |
+| F11 | One belt lane carries `speed x 60 x 4` items/s: 7.5 yellow, 15 red, 22.5 blue, 30 turbo. A full belt carries double. | Prototype data (`ratios.belt_lane_capacity`); full yellow belt (15/s) confirmed in-game 2026-10-11 (iron, both lanes full) |
+| F12 | Electric furnace: 3x3, crafting speed 2. Iron and copper plate take 3.2 s (0.625/s each); steel takes 16 s and 5 iron plates (0.125/s each). So one iron furnace makes exactly what one steel furnace eats (0.625 plates/s), at any crafting speed. | Prototype data; iron confirmed in-game 2026-10-11 (24 furnaces filled both lanes of a yellow belt); 1:1 pairing confirmed in-game 2026-10-11 (steel column, every furnace running) |
+| F13 | **Furnaces pick their recipe from their input:** ore makes plates, iron plates make steel. Blueprints don't set a furnace recipe. | Confirmed in-game 2026-10-11 (steel column: ore-fed furnaces made plates, plate-fed furnaces made steel) |
 
 ## Techniques
 
 ### T1. Lane balancing: priority splitter and side-load
 **Solves:** machines that unload with inserters from one side fill only the belt's far lane (F1). Output is capped at half a belt, and once that lane is busy, the last machines can't unload.
 
-**Applies when:** any belt that inserters drop onto from one side.
+**Applies when:** any belt that inserters drop onto from one side, when the output can exceed one lane. Not needed for the steel column (T4), whose output is a fifth of its input.
 
 **Layout:** one module per 2 machines. In the smelting column (belts flow south, inserters drop east onto col 6):
 
@@ -75,9 +76,9 @@ v belt south   > belt east   P medium pole   I inserter (moves west to east)   [
 - **Priority goes on the side opposite the inserters' drop lane.** It's easy to miss: the first version had no priority. *Corrected by the user, 2026-10-11.*
 - Priority is facing-relative (F5): for a south-facing splitter, use `"right"`.
 - Match the splitter tier to the belt (`_splitter_for`: same `speed`).
-- Near a full belt, the last inserters may find few gaps in the far lane. This is best-effort (P2).
+- Near a full belt, the last inserters may find few gaps in the far lane. Not seen yet: at a full yellow belt (iron 15/s, 24 furnaces), every furnace could still unload. Still best-effort (P2).
 
-**Status:** confirmed in-game 2026-10-11 (copper 30/s on red belt, 48 furnaces). Shown to us by the user.
+**Status:** confirmed in-game 2026-10-11 on all 3 samples: copper 30/s (red belt, 48 furnaces), iron 15/s (yellow, 24 furnaces: both lanes 100% full, every furnace unloading) and steel 3/s (24 furnaces, every furnace unloading). Shown to us by the user.
 
 **Code:** `generators/smelting_column.py` (`SPLITTER_ROW`, `SIDELOAD_ROW`, `SPLITTER_PRIORITY`, `_splitter_for`).
 **Enforced by:** `check_flow` (splitter faces south across cols 5-6 with west priority; an east-facing side-load belt sits under every splitter). Tests: `test_module_layout_balances_lanes`, `test_broken_lane_balancing_is_rejected`, `test_missing_sideload_belt_is_rejected`.
@@ -87,18 +88,47 @@ v belt south   > belt east   P medium pole   I inserter (moves west to east)   [
 
 **Layout:** machine A unloads from its bottom row and machine B from its top row, so the 2 inserters on each side sit together (rows 2-3 above). That frees rows 1, 4 and 5 for the pole (T3) and the splitter and side-load (T1).
 
-**Status:** confirmed in-game 2026-10-11. Shown to us by the user, as part of T1.
-**Code:** `generators/smelting_column.py` (the A/B loop). **Enforced by:** `check_flow` (inserter pickup and drop columns) and `inserter_wiring`.
+**Status:** confirmed in-game 2026-10-11 (copper, iron and steel samples). Shown to us by the user, as part of T1.
+**Code:** `generators/columns.py` (`modules`), shared by `smelting_column` and `steel_column`. **Enforced by:** each generator's `check_flow` (inserter pickup and drop columns) and `inserter_wiring`.
 
 ### T3. Pole ladder
 **Solves:** powering a long column with as few poles as possible, and getting the wires into the blueprint (F6).
 
-**Layout:** a medium pole in each inserter column (cols 1 and 5) on row 1 of every 2-machine module, which puts them 6 rows apart (reach 9, F10). The pipeline wires them axis-only into a ladder: one rung across each module, plus a rail down each side.
+**Layout:** a medium pole in each inserter column on row 1 of every 2-machine module, which puts them 6 rows apart (reach 9, F10). The smelting column has 2 inserter columns (cols 1 and 5); the steel column has 3 (cols 1, 5 and 9) and needs all 3 poles, because a pole only reaches 3 tiles either side. The pipeline wires them axis-only into a ladder: rungs across each module, plus a rail down each inserter column.
 
-**Status:** confirmed in-game 2026-10-11.
-**Code:** poles in `generators/smelting_column.py`; wiring in `pipeline.build` (`generate_power_connections(only_axis=True)`). **Enforced by:** `power_coverage` and `pole_network` in `checks.py`. Test: `test_column_poles_are_wired_as_a_ladder`.
+**Status:** confirmed in-game 2026-10-11 (every sample fully powered, including the 24-furnace iron and steel columns and the 3-pole steel-from-ore column).
+**Code:** poles in each generator (`POLE_ROW` in `generators/columns.py`); wiring in `pipeline.build` (`generate_power_connections(only_axis=True)`). **Enforced by:** `power_coverage` and `pole_network` in `checks.py`. Tests: `test_column_poles_are_wired_as_a_ladder`, `test_poles_form_one_network`, `test_power_reach_is_measured_from_the_pole_centre`.
+
+### T4. Direct insertion furnace chain
+**Solves:** making steel from ore without a plate belt in between.
+
+**Layout:** each iron furnace hands its plates straight to the steel furnace beside it through one inserter. One module is two pairs, 11 tiles wide:
+
+```
+col:  0  1  2-4      5  6-8       9  10
+row0  v  .  [IRON A] .  [STEEL A] .  v
+row1  v  P  [IRON A] P  [STEEL A] P  v
+row2  v  I  [IRON A] I  [STEEL A] I  v
+row3  v  I  [IRON B] I  [STEEL B] I  v
+row4  v  .  [IRON B] .  [STEEL B] .  v
+row5  v  .  [IRON B] .  [STEEL B] .  v
+
+col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)   P medium pole
+```
+
+**Why it works:** an iron furnace makes exactly what a steel furnace eats (F12), so pairs never starve or back up. Each furnace picks its recipe from what it's fed (F13). A full yellow belt of ore (15/s) feeds 24 pairs for 3 steel/s.
+
+**Gotchas:**
+- The generator refuses a furnace whose iron and steel rates don't match 1:1, for example a modded recipe.
+- No lane balancing on the steel belt (T1 skipped): 3 steel/s from a full yellow belt of ore is well under one lane.
+- The middle inserter column needs its own pole (T3).
+
+**Status:** confirmed in-game 2026-10-11 (3 steel/s from a full yellow belt of ore, 24 pairs: every furnace running). Chosen by the user over a middle plate belt.
+
+**Code:** `generators/steel_column.py`.
+**Enforced by:** `check_flow` (inserters move ore -> iron -> steel -> belt; every iron furnace has a steel partner; every furnace is loaded and unloaded; both belts flow south). Tests: `test_broken_layout_is_rejected` in `tests/test_steel_column.py`.
 
 ## Open questions
 
-- How close to a full belt does T1 really get at the bottom of a long column? Confirmed to come out correctly at 30/s; sustained throughput hasn't been measured.
+- How close to a full belt does T1 really get at the bottom of a long column? On a 24-furnace yellow column (iron 15/s), it reaches 100% of both lanes with every furnace unloading. The 48-furnace red column (copper 30/s) came out correctly, but nobody checked whether its bottom furnaces were blocked. Faster belts and longer columns are still open.
 - Do other machine shapes (assemblers with several inputs, fluids) need a different balancing module? Revisit with the next generator.

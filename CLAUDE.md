@@ -33,7 +33,7 @@ When you need a decision, choice, or clarification from the user — not just in
 
 ## Status
 
-Scaffolded around draftsman 3.3.1 with one generator (`smelting_column`). `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`. Logistics and power & fluids generators are not started.
+Scaffolded around draftsman 3.3.1 with two generators: `smelting_column` (all 3 samples confirmed in-game) and `steel_column` (ore to steel by direct insertion; first sample confirmed in-game). `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`. Logistics and power & fluids generators are not started.
 
 ## Techniques Catalog
 
@@ -55,6 +55,7 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
 
 - `pipeline.build(spec)` is the single entry point: look up the generator by `spec["type"]`, build a draftsman `Blueprint`, then **turn every draftsman warning into a failure** (overlap, unknown entity, etc. only warn in draftsman) and run all checks. Any problem raises `BuildError`; a bad spec raises `SpecError`.
 - `generators/`: a generator is `spec -> (entities, notes)`, registered with `@register(name, checks=(...))`. Layout-specific checks go in `checks=` and are keyed by type name, so wrapping a generator in a test still applies them.
+- `generators/columns.py`: building blocks shared by the furnace columns (spec options, `count`/`rate`, the 6-row A/B module).
 - `checks.py`: generic checks for every blueprint (inserter pickup/drop hit an entity, electric consumers are inside a pole's supply area). These can't tell a reversed inserter from a correct one. Direction/flow correctness is each generator's own `check_flow`.
 - `ratios.py`: machine counts and belt lane capacity from prototype data. Base crafting speed only, no modules or beacons yet.
 - Notes vs. errors: real throughput is best-effort, so it appears as `WARNING:` notes (for example a column whose output is more than its plate belt carries), never as failures.

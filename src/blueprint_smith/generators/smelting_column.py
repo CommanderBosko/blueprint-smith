@@ -21,26 +21,12 @@ from draftsman.entity import new_entity
 from .. import ratios
 from ..errors import SpecError
 from . import register
+from .columns import FURNACE_SIZE, MODULE_ROWS, POLE_ROW, column_furnace, entity_option, machine_count, modules
 
 ORE_X, IN_X, FURNACE_X, OUT_X, PLATE_X = 0, 1, 2, 5, 6
-FURNACE_SIZE = 3
-MODULE_ROWS = 2 * FURNACE_SIZE
-POLE_ROW, SPLITTER_ROW, SIDELOAD_ROW = 1, 4, 5
+SPLITTER_ROW, SIDELOAD_ROW = 4, 5
 # A splitter's left/right are relative to its facing: facing south, "right" is the west output.
 SPLITTER_PRIORITY = "right"
-
-
-def _entity(spec: dict, key: str, default: str, kind: str) -> str:
-    """spec[key] (or `default`) must name an entity whose prototype type is `kind`."""
-    name = spec.get(key, default)
-    if not isinstance(name, str) or entities.raw.get(name, {}).get("type") != kind:
-        raise SpecError(f"'{key}' must name a {kind} entity, got {name!r}")
-    return name
-
-
-def _furnace_tiles(furnace: str) -> int:
-    box = entities.raw[furnace]["collision_box"]
-    return round(box[1][0] - box[0][0] + 0.2)
 
 
 def _splitter_for(belt: str) -> str:
@@ -95,32 +81,18 @@ def check_flow(bp) -> list[str]:
 
 @register("smelting_column", checks=(check_flow,))
 def smelting_column(spec: dict) -> tuple[list, list[str]]:
-    furnace = _entity(spec, "furnace", "electric-furnace", "furnace")
+    furnace = column_furnace(spec, "smelting_column")
     recipe = spec.get("recipe", "iron-plate")
-    belt = _entity(spec, "belt", "transport-belt", "transport-belt")
-    inserter = _entity(spec, "inserter", "fast-inserter", "inserter")
-    pole = _entity(spec, "pole", "medium-electric-pole", "electric-pole")
+    belt = entity_option(spec, "belt", "transport-belt", "transport-belt")
+    inserter = entity_option(spec, "inserter", "fast-inserter", "inserter")
+    pole = entity_option(spec, "pole", "medium-electric-pole", "electric-pole")
     splitter = _splitter_for(belt)
 
-    if _furnace_tiles(furnace) != FURNACE_SIZE:
-        raise SpecError(f"smelting_column only supports 3x3 furnaces (electric-furnace), got {furnace!r}")
-    if ("count" in spec) == ("rate" in spec):
-        raise SpecError("smelting_column needs exactly one of 'count' or 'rate' (plates per second)")
-
     per_furnace = ratios.crafts_per_second(furnace, recipe)
-    if "count" in spec:
-        n = spec["count"]
-        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
-            raise SpecError("'count' must be a positive integer")
-    else:
-        rate = spec["rate"]
-        if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not math.isfinite(rate) or rate <= 0:
-            raise SpecError("'rate' must be a positive number (plates per second)")
-        n = ratios.machines_for_rate(furnace, recipe, rate)
+    n = machine_count(spec, "smelting_column", furnace, recipe, "plates")
 
     out: list = []
-    for m in range(math.ceil(n / 2)):
-        y0 = m * MODULE_ROWS
+    for y0, slots in modules(n):
         for dy in range(MODULE_ROWS):
             out.append(new_entity(belt, tile_position=(ORE_X, y0 + dy), direction=Direction.SOUTH))
             if dy != SPLITTER_ROW:
@@ -136,10 +108,7 @@ def smelting_column(spec: dict) -> tuple[list, list[str]]:
             )
         )
         out.append(new_entity(belt, tile_position=(OUT_X, y0 + SIDELOAD_ROW), direction=Direction.EAST))
-        # A unloads from its bottom row, B from its top row; an odd count leaves the last module without B.
-        for k, (top, row) in enumerate(((y0, y0 + FURNACE_SIZE - 1), (y0 + FURNACE_SIZE, y0 + FURNACE_SIZE))):
-            if 2 * m + k >= n:
-                break
+        for top, row in slots:
             out.append(new_entity(furnace, tile_position=(FURNACE_X, top)))
             out.append(new_entity(inserter, tile_position=(IN_X, row), direction=Direction.WEST))
             out.append(new_entity(inserter, tile_position=(OUT_X, row), direction=Direction.WEST))
