@@ -30,7 +30,7 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 ### P2. Two-tier acceptance
 - **Guaranteed by the tooling:** a valid string that round-trips, no collisions, everything connected and powered, ratios computed.
 - **Best-effort:** real throughput. Report it as `WARNING:` notes, never as failures, and never claim more than that. *From `PROJECT_BRIEF.md`.*
-- **Amended for v2, in effect since 2026-10-11 (H1):** a headless harness run (`blueprint-smith evaluate`, `build --evaluate`) is a hard pass/fail. It fails if the crafted output is below 98% of the target, any machine works less than 95% of the window, any machine's output backs up (more than 3 items gained), or less than 80% of the crafted output reaches the output port. Builds checked only statically keep the `WARNING:` notes.
+- **Amended for v2, in effect since 2026-10-11 (H1):** a headless harness run (`blueprint-smith evaluate`, `build --evaluate`) is a hard pass/fail. It fails if the crafted output is below 98% of the target, any machine works less than 95% of the window, any machine's output backs up (more than 3 items gained), or less than 80% of the crafted output reaches the output port. Builds checked only statically keep the `WARNING:` notes. *Decided 2026-10-11 for M2 (not yet implemented):* "under 95% working" becomes "blocked on output for more than 5% of the window". An idle, over-capacity machine is reported, not failed.
 
 ## Game mechanics
 

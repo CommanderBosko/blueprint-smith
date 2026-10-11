@@ -74,6 +74,11 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
   - Module and beacon math with the standard meta: productivity modules in machines, speed modules in beacons.
   - Defaults are the best available machine (the electromagnetic plant for circuits) and legendary machines, modules and beacons. A request can override any of these.
   - A beaconed green-circuit layout, plus an optimiser over generator variants scored by the harness.
+  - *Decided 2026-10-11 when M2 started:*
+    - Iron and copper plates come in on belts, and the block makes its own copper cable.
+    - "Fill a turbo belt" means **stacked: 240/s** (Space Age belt stacking).
+    - **Everything is researched** by default; a request can override levels. `ratios.py` must model research bonuses, and M2's harness runs use `--research all`.
+    - **Machine bar:** a machine fails only if it is blocked on output for more than 5% of the window, or its output buffer grows. Idle time from over-capacity is reported, not failed, because beacons come in whole steps and one machine can't be sized exactly. This replaces "every machine working at least 95%". Plan: `docs/m2-plan.md`.
 - **Requests** are single blocks with their inputs on belts at the edge. If a request is ambiguous, Claude asks the user before building.
 
 ## Nice-to-haves / stretch
@@ -104,7 +109,7 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
     - the pre-T1 steel layout's last furnaces blocked on output (git `f1d113a`, `examples/smelting_column_steel.json`)
     - unwired poles (predates git; recreate by skipping the wiring step)
 - **M2 (the end goal):**
-  - "Fill a turbo belt of green circuits" produces a beaconed, standard-meta, electromagnetic-plant blueprint that passes the harness: at least 98% of 60/s, every machine working at least 95% of ticks.
+  - "Fill a turbo belt of green circuits" produces a beaconed, standard-meta, electromagnetic-plant blueprint that passes the harness: at least 98% of 240/s (a stacked turbo belt), no machine blocked on output, with everything researched.
   - The optimiser returns the smallest passing variant.
   - The user's spot-checks of the first few layouts it approves agree with the harness.
 

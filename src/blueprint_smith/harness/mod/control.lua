@@ -342,7 +342,8 @@ local function tick(t)
         local seen, now = o.seen[lane], {}
         for _, it in pairs(o.belt.get_transport_line(lane).get_detailed_contents()) do
           now[it.unique_id] = true
-          if in_window and not seen[it.unique_id] then o.lanes[lane] = o.lanes[lane] + 1 end
+          -- One entry is a stack: up to 4 items on a stacked belt.
+          if in_window and not seen[it.unique_id] then o.lanes[lane] = o.lanes[lane] + it.stack.count end
         end
         o.seen[lane] = now
       end

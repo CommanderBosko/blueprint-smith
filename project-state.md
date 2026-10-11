@@ -27,7 +27,8 @@
 ## Current Goals
 
 - **Short term (next 1-3 sessions):** v2 optimizer milestone 1, the headless evaluation harness (`PROJECT_BRIEF.md`, v2 section, confirmed 2026-10-11). Still open from v1: 2 more `steel_column` samples.
-- **Long term:** v2 milestone 2 (module/beacon solver, beaconed green circuits, an optimiser scored by the harness); M3/M4 are stretch goals. Logistics and power & fluids generators are paused.
+- **Next session:** start v2 milestone 2 from `docs/m2-plan.md`, with pieces A (harness: stacked feeding, research all, blocked-only machine bar), C (solver) and D (checks) in parallel. The target is 240/s green circuits on a stacked turbo belt from legendary electromagnetic plants. The block is limited by inserters and belts, not by machines.
+- **Long term:** finish M2 (measured inserter rates, generator, optimiser, user spot-check). M3 and M4 are stretch goals. Logistics and power & fluids generators are paused.
 
 ## Recent Decisions
 
