@@ -1,6 +1,6 @@
 # M2 plan: solver and stacked green circuits
 
-Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 2026-10-11. **Status:** planned, with the machine-bar decision made. The user paused before implementation started, so the next step is pieces A, C and D in parallel. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
+Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 2026-10-11. **Status (2026-10-11):** pieces A, C and D are done on branch `v2-m2-acd` (see "Progress" below). Next: B, then E, then F. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
 - **Input:** iron and copper plates on belts. The block makes its own copper cable.
 - **Output:** 240/s on a stacked turbo belt.
 - **Defaults:** everything researched; legendary electromagnetic plants, legendary productivity-3 in the machines, legendary beacons with legendary speed-3.
@@ -34,7 +34,7 @@ Sources: local 2.0.77 data (`data/`, `doc-html/`), a draftsman 3.3.1 probe, and 
   | N | Crafting speed | Productivity | Circuits/s if making circuits |
   |---|---|---|---|
   | 1 | 32.5 | +175% | 179 |
-  | 2 | 45.4 | +175% | 250 |
+  | 2 | 45.45 | +175% | 250 |
   | 4 | 63.8 | +175% | 351 |
 
 - **240/s needs 87.3 circuit crafts/s.** That consumes 87.3 iron/s and 262 cable/s; the cable takes 47.6 cable crafts/s, which consume 47.6 copper/s.
@@ -90,6 +90,25 @@ The pieces run in parallel where possible:
 | **F. Optimiser** | `src/blueprint_smith/optimise.py`, CLI `optimise` | Enumerate variants, prefilter them with the solver, run the harness on survivors in parallel, and return the smallest passing footprint (ties broken by power). | A, E |
 
 A, C and D start now in parallel. B follows A. E follows C and D. F is last.
+
+## Progress
+
+**A, C and D, 2026-10-11** (built in parallel; 375 tests pass, 1 strict xfail):
+- **A (harness):**
+  - `Port.stack` (1–4) is validated in the pipeline and the mod.
+  - Stacked inputs are fed by script (F17): a turbo belt delivers 240.00/s, 120/120 per lane.
+  - The loader sink keeps up at 240/s, so `stack` on an output port is informational.
+  - The machine bar is implemented: blocked on output for more than 5% fails, and idle time is reported as utilisation (P2). Unpowered time isn't judged, because power is never short in the user's save (user, 2026-10-12).
+  - Results now carry each machine's quality, crafting speed and productivity, plus the research bonuses.
+- **C (solver):**
+  - `effects.py` covers quality, modules, beacons, research, power and demand.
+  - The 2.0 whole-percent rounding was fitted on the headless server (F19). That's why the N=2 row reads 45.45: unrounded maths gives 45.44.
+  - Nothing boosts circuit or cable productivity. `ratios.py` is unchanged.
+- **D (checks):** `module_validity`, `beacon_reach`, `underground_pairing` and `hidden_entities` now run on every blueprint (F24–F27).
+  - `checks.beacon_targets(bp)` returns `{machine: [beacons]}`, and that output goes straight into `effects.entity_rates(machine, beacons=...)` (`tests/test_m2_integration.py`).
+- **For B:**
+  - `products_finished` counts items including the productivity bonus (F18).
+  - M2 runs must pass `research="all"`, because the stacked feed works without research.
 
 ## Verification plan
 

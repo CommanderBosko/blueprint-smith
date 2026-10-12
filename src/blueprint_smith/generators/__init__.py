@@ -17,6 +17,9 @@ class Port:
     tile: tuple[int, int]  # the belt tile at the edge: first tile of an input belt, last tile of an output belt
     direction: int  # flow direction of that belt (N=0 E=4 S=8 W=12)
     rate: float  # input: informational (fed at full belt rate); output: the target items/s
+    # items per belt slot, 1-4 (above 1 needs belt stacking researched). The harness feeds an input above 1 by
+    # script, since loaders can't stack; an output drains through its loader at any stack.
+    stack: int = 1
 
 
 Generator = Callable[[dict], tuple[list, list[str], list[Port]]]

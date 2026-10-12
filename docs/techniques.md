@@ -8,6 +8,7 @@ Status labels:
 - **Confirmed in-game (date):** seen working in the user's game.
 - **Prototype data:** read from the game's data files, not yet seen in-game.
 - **Inferred:** reasoned from other facts. Confirm in-game before relying on it heavily.
+- **Headless 2.0.77 (date):** measured in the headless harness (H1), not yet seen in the user's game.
 
 ## Design checklist (for every generator)
 
@@ -21,6 +22,7 @@ Run through this when designing a new generator or changing an old one. It's how
 6. **Enforce every technique in code.** Each technique a generator uses gets an invariant in its `check_flow` and a mutation test that breaks the layout on purpose and expects the build to fail.
 7. **Share code, don't copy it.** When a second generator needs a technique, move it out of the first generator into a shared building block.
 8. **Record the in-game result here.** After the user tests a blueprint, update the status of every entry it exercised.
+9. **Size beaconed machines with the solver, not by hand.** Count each machine's beacons with `checks.beacon_targets` (F24) and pass them to `effects.entity_rates` (F19–F21). The generic checks already enforce module limits, underground pairing and survival-buildable entities (F25–F27).
 
 ## Principles (the user's quality bar)
 
@@ -30,7 +32,13 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 ### P2. Two-tier acceptance
 - **Guaranteed by the tooling:** a valid string that round-trips, no collisions, everything connected and powered, ratios computed.
 - **Best-effort:** real throughput. Report it as `WARNING:` notes, never as failures, and never claim more than that. *From `PROJECT_BRIEF.md`.*
-- **Amended for v2, in effect since 2026-10-11 (H1):** a headless harness run (`blueprint-smith evaluate`, `build --evaluate`) is a hard pass/fail. It fails if the crafted output is below 98% of the target, any machine works less than 95% of the window, any machine's output backs up (more than 3 items gained), or less than 80% of the crafted output reaches the output port. Builds checked only statically keep the `WARNING:` notes. *Decided 2026-10-11 for M2 (not yet implemented):* "under 95% working" becomes "blocked on output for more than 5% of the window". An idle, over-capacity machine is reported, not failed.
+- **Amended for v2, in effect since 2026-10-11 (H1):** a headless harness run (`blueprint-smith evaluate`, `build --evaluate`) is a hard pass/fail. Builds checked only statically keep the `WARNING:` notes. A run fails if:
+  - the crafted output is below 98% of the target (the sink rate when no machine makes the item);
+  - any machine is blocked on output (`full_output`, `waiting_for_space_in_destination`, `full_burnt_result_output`) for more than 5% of the window;
+  - any machine's output backs up (more than 3 items gained);
+  - or less than 80% of the crafted output reaches the output port.
+
+  Idle time isn't failed: beacons come in whole steps, so an honest design runs some machines under capacity. Each machine kind's utilisation (min and mean share working) is reported instead, and the output bar catches a starved line. Unpowered time isn't judged either, only reported: power is never short in the user's save (user, 2026-10-12). *The M2 machine bar was decided by the user and implemented 2026-10-11. It replaced "every machine working at least 95%".*
 
 ## Game mechanics
 
@@ -44,14 +52,25 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 | F6 | **A pasted blueprint keeps only the wires it carries.** Poles inside it don't auto-connect, even within reach. | Confirmed in-game 2026-10-11 (11 of 12 poles dead before the pipeline added wires) |
 | F7 | An inserter's blueprint `direction` is the side it **picks up from**. | Prototype data; every in-game test so far flowed correctly |
 | F8 | Directions: N=0, NE=2, E=4, S=8, W=12. | Prototype data |
-| F9 | Underground belt `max_distance` is 5/7/9 tiles (total span, not the gap). | Prototype data |
+| F9 | Underground belt `max_distance` is 5/7/9/11 tiles for yellow/red/blue/turbo, from entrance to exit (total span, not the gap). | Prototype data; headless 2.0.77, 2026-10-11 (yellow pairs at 5 not 6, turbo at 11 not 12) |
 | F10 | Medium electric pole: 7x7 supply area, wire reach 9. The supply area spans `supply_area_distance` either side of the pole's **centre**, not its edge (small 5x5, medium 7x7, big 4x4, substation 18x18). | Prototype data; poles 6 rows apart confirmed in-game 2026-10-11. `power_coverage` measured from the edge until 2026-10-11, found by the steel column's mutation test |
 | F11 | One belt lane carries `speed x 60 x 4` items/s: 7.5 yellow, 15 red, 22.5 blue, 30 turbo. A full belt carries double. | Prototype data (`ratios.belt_lane_capacity`); full yellow belt (15/s) confirmed in-game 2026-10-11 (iron, both lanes full) |
 | F12 | Electric furnace: 3x3, crafting speed 2. Iron and copper plate take 3.2 s (0.625/s each); steel takes 16 s and 5 iron plates (0.125/s each). So one iron furnace makes exactly what one steel furnace eats (0.625 plates/s), at any crafting speed. | Prototype data; iron confirmed in-game 2026-10-11 (24 furnaces filled both lanes of a yellow belt); 1:1 pairing confirmed in-game 2026-10-11 (steel column, every furnace running) |
 | F13 | **Furnaces pick their recipe from their input:** ore makes plates, iron plates make steel. Blueprints don't set a furnace recipe. | Confirmed in-game 2026-10-11 (steel column: ore-fed furnaces made plates, plate-fed furnaces made steel) |
-| F14 | **Research changes throughput.** Space Age's steel-plate productivity research adds +10% steel at level 1, and inserter capacity research raises hand size. `ratios.py` assumes no research, so the harness defaults to none (`--research all` researches everything). | Headless 2.0.77, 2026-10-11 (steel furnaces made 11 crafts in 80 s with all research, 10 without) |
+| F14 | **Research changes throughput.** Space Age's steel-plate productivity research adds +10% steel at level 1, and inserter capacity research raises hand size. `ratios.py` assumes no research, so the harness defaults to none (`--research all` researches everything). `effects.py` models research for M2 (F23). | Headless 2.0.77, 2026-10-11 (steel furnaces made 11 crafts in 80 s with all research, 10 without) |
 | F15 | **A machine buffers a stack of output** (100 plates is about 160 s of an iron furnace, 800 s of a steel one). A furnace whose output is blocked keeps crafting into that buffer and still reads "working", so a jam can hide for minutes. Watch the buffer grow instead. | Headless 2.0.77, 2026-10-11 (pre-T1 copper asked for 30/s: every furnace "working" while the bottom 24 gained 38 plates each) |
 | F16 | **A script-revived blueprint keeps** splitter `output_priority` and the copper wires it carries, and fulfilling module requests by script keeps their quality. | Headless 2.0.77, 2026-10-11 |
+| F17 | **A script can stack items on a belt without a loader or research:** `insert_at_back({name, count=4}, 4)` once per lane per tick holds a turbo belt at 240/s (120 per lane). A turbo loader drains a stacked belt at the full 240/s, so only the feed side needs the script. | Headless 2.0.77, 2026-10-11 (`tests/test_harness_m2.py`) |
+| F18 | **Statuses:** a starved assembler reads `item_ingredient_shortage`, a starved furnace `no_ingredients`, and a furnace never fed has no recipe at all. Full result slots read `full_output`. `products_finished` counts output items **including** the productivity bonus, not crafts. | Headless 2.0.77, 2026-10-11 (a plant at +175% made 13.73/s against 13.75/s expected) |
+| F19 | **2.0 effects are whole percents** (an `EffectValue` keeps two decimals; fixed in 2.1). A module's bonus × its quality multiplier is **truncated**. A beacon sends trunc(float32(Σ its modules × float32(effectivity))). The machine rounds Σ(sent × profile[N]) **half up, once**. Base + modules + beacons are then floored. So 2 legendary beacons give a plant speed 45.45, not 45.44. | Headless 2.0.77, 2026-10-11: matched 476 of 476 `LuaEntity.effects` values over 119 plants (every beacon quality, 1–6 beacons). Code: `effects.py`, switch `ROUND_2_0`; enforced by `tests/test_effects.py`. Untested: exact .5 ties, mixed beacon types |
+| F20 | **Quality** (levels 0/1/2/3/5 for normal…legendary) multiplies crafting speed and module **bonuses** by 1 + 0.3·level, including efficiency's consumption cut, but not penalties and not crafting-machine power. Beacon effectivity is 1.5 + 0.2·level (legendary 2.5), and beacon power scales by `beacon_power_usage_multiplier` (legendary 1/6: 80 kW). | Headless 2.0.77, 2026-10-11 (`effects.py`) |
+| F21 | **Productivity is capped at +300%** (4× output per craft). A machine's base productivity (electromagnetic plant +50%) applies even to recipes that refuse productivity modules. Nothing researches circuit or cable productivity. | Headless 2.0.77, 2026-10-11 (output 4× per craft at an uncapped 375%; an accumulator in a plant got +50%) |
+| F22 | **Machine power** = `energy_usage` × max(0.2, 1 + consumption) + drain, where drain defaults to `energy_usage`/30. A legendary plant with 5 legendary prod-3 and 1 legendary beacon draws 17,066.7 kW. | Headless 2.0.77, 2026-10-11 (network statistics; `effects.py`) |
+| F23 | **"Research all"** sets each infinite technology to level 1 (+10% to 18 recipes, steel among them), belt stack size +3, inserter stack size +3 and bulk inserter capacity +11. | Technology Lua (`effects.TECHNOLOGIES`, checked against the files by a test); headless 2.0.77, 2026-10-11 |
+| F24 | **Beacon reach:** a beacon supplies its footprint grown by `supply_area_distance` on every side (9×9 for the 3×3 beacon) and reaches every machine whose collision box overlaps it, corners included: up to 2 tiles of gap. Quality changes neither beacon reach nor module slots. Assembling machine 1, stone and steel furnaces and the burner drill take no beacon effects. | Headless 2.0.77, 2026-10-11 (boundaries for assembler 3, EM plant, lab, recycler). Code: `checks.beacon_targets`; enforced by `beacon_reach` |
+| F25 | **Module limits:** only a module's **bonuses** must be allowed, by the entity's `allowed_effects` and by the recipe's `allow_*` flags (productivity defaults to off). Beacons allow consumption, speed and pollution, so speed and efficiency modules go in and productivity and quality don't. Setting a recipe that refuses productivity ejects prod modules. | Headless 2.0.77, 2026-10-11 (`can_insert`). Enforced by `module_validity` |
+| F26 | **Underground pairing:** an underground pairs with the first same-tier underground on its line. Other tiers and perpendicular ones are passed under; a same-tier entrance, or either kind facing back, blocks the pair. Ambiguous ghosts can flip type when revived. | Headless 2.0.77, 2026-10-11 (`neighbours`). Enforced by `underground_pairing` |
+| F27 | **Hidden entities** can't be built in survival. 2.0.77 hides them through their **item's** `hidden`: the loaders (turbo included), loader-1x1, the infinity, linked and bottomless chests, the energy interfaces, and the space-platform hub. | Prototype data; matched `LuaEntityPrototype.hidden` headless 2.0.77, 2026-10-11. Enforced by `hidden_entities` |
 
 ## Techniques
 
@@ -138,6 +157,8 @@ col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)
 **How it works:**
 - The Factorio 2.0.77 headless server (Linux build, in `~/.cache/blueprint-smith/`; `blueprint-smith install-server` fetches it) runs a generated mod. The mod pastes the blueprint on a lab surface and revives it.
 - Each input port is fed by a loader of its belt's tier from an infinity chest. Each output port drains through a loader into a chest that is emptied every tick.
+- A port's `stack` (1–4) is items per belt slot. An input with `stack` > 1 gets no loader, since loaders can't output stacks: each tick the mod inserts a stack at the back of both lanes (F17). Outputs drain through the loader at any stack.
+- `research` is `none` (the default, matching `ratios.py`) or `all` (M2 runs). The result records the research bonuses and each machine's quality, crafting speed and productivity.
 - An energy interface on a pole is wired to the nearest blueprint pole.
 - The run gets a warmup of max(2 min, 3 × belt transit, 10 × slowest craft), then a window of max(60 s, 10 × slowest craft).
 - Over the window it measures:
@@ -151,9 +172,10 @@ col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)
 - Pre-T1 copper puts every plate on one lane (F1). Asked for a full belt it backs up, and unwired poles fail (F6).
 - **Pre-T1 steel disagrees with the game** (see open questions).
 - About 6 s per run, and runs work in parallel.
+- Stacked feed, 2026-10-11: a turbo belt fed at stack 4 delivers 240.00/s, 120/120 per lane, with or without research. Stack 1 through the loader gives 60/s. A legendary EM plant with 5 legendary prod-3 and 1 legendary beacon reads speed 32.5 and productivity +175%, as `effects.py` predicts.
 
 **Code:** `src/blueprint_smith/harness/` (`mod/control.lua`, `runner.py`, `verdict.py`, `server.py`), `evaluate.py` (timing). Plan and spike notes: `docs/m1-harness-plan.md`.
-**Enforced by:** `tests/test_harness_calibration.py` (real server; skipped without one), `tests/test_harness_runner.py`, `tests/test_cli_evaluate.py`.
+**Enforced by:** `tests/test_harness_calibration.py` (real server; skipped without one), `tests/test_harness_m2.py` (stacked feed, legendary modules, a blocked plant), `tests/test_harness_runner.py`, `tests/test_cli_evaluate.py`.
 
 ## Open questions
 
@@ -161,5 +183,5 @@ col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)
 - Do other machine shapes (assemblers with several inputs, fluids) need a different balancing module? Revisit with the next generator.
 - **Pre-T1 steel: the harness and the game disagree.** In-game (old single-sided layout, output consumed downstream) the last few furnaces couldn't unload. In the harness, with a free-draining sink, every furnace works, even after 20 minutes and with all research. 3/s on one lane of a 7.5/s belt should leave plenty of gaps. Possible causes: the downstream consumer backed up, the startup burst, or a mod. `test_pre_t1_steel_jams_like_in_game` is a strict xfail until this is settled. *Low priority:* the user confirmed (2026-10-11) the jam only ever happened on the pre-splitter layout, and every current generator uses T1.
 - **Copper 30/s bottom furnaces:** never checked in-game for blocking. The harness says none are blocked, but the result only counts as ground truth once the user re-checks it.
-- **Research for real requests:** M1 judges with no research (F14). M2 requests default to the best tier and quality, so they probably want research too, and `ratios.py` would then have to model it.
-- **`products_finished` for multi-product recipes:** the harness multiplies crafts by product amount. That's right if the counter counts crafts; every recipe so far makes 1 item, so it's untested.
+- **`products_finished` for multi-product recipes:** it counts output items including the productivity bonus (F18), measured on single-product recipes. The harness multiplies by product amount, so a recipe making more than 1 item may be double-counted. Untested until a generator uses one.
+- **Do empty or unpowered beacons count toward a machine's beacon number N?** `effects.py` assumes every beacon in reach counts. Untested.

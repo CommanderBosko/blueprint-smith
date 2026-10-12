@@ -1,4 +1,6 @@
+import dataclasses
 import json
+import re
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -6,12 +8,13 @@ from pathlib import Path
 import pytest
 
 from blueprint_smith import harness
+from blueprint_smith.generators import Port
 from blueprint_smith.harness import runner, server
 from blueprint_smith.harness.runner import (BuildStatus, HarnessError, HarnessResult, MachineMeasure, OutputMeasure,
                                             PowerMeasure, config_ini, job_lua, lua_string, lua_value, mod_list,
                                             parse_result, prepare)
 from blueprint_smith.harness.server import HarnessUnavailable, find_server
-from blueprint_smith.harness.verdict import judge
+from blueprint_smith.harness.verdict import judge, utilisation
 
 FIXTURES = Path(__file__).parent / "fixtures" / "harness"
 GOOD_VERSION = "Version: 2.0.77 (build 84539, linux64, headless)"
@@ -123,13 +126,27 @@ def test_job_lua_carries_blueprint_ports_and_ticks():
         "return {\n"
         "  blueprint = [==[0eNq]]x]=]]==],\n"
         "  ports = {"
-        "{role = [[input]], item = [[iron-ore]], belt = [[transport-belt]], tile = {0, 0}, direction = 8, rate = 15}, "
+        "{role = [[input]], item = [[iron-ore]], belt = [[transport-belt]], tile = {0, 0}, direction = 8, rate = 15, "
+        "stack = 1}, "
         "{role = [[output]], item = [[iron-plate]], belt = [[fast-transport-belt]], tile = {6, 71}, direction = 12, "
-        "rate = 22.5}},\n"
+        "rate = 22.5, stack = 1}},\n"
         "  warmup_ticks = 7200,\n"
         "  window_ticks = 3600,\n"
         "  research = [[none]],\n"
         "}\n")
+
+
+def test_job_lua_carries_the_port_stack():
+    stacked = replace(Port(*dataclasses.astuple(IRON_PORTS[0])), stack=4)
+    assert "rate = 15, stack = 4}" in job_lua("0e", [stacked], warmup_ticks=1, window_ticks=1)
+    assert "stack = 2}" in job_lua("0e", [{**dataclasses.asdict(IRON_PORTS[1]), "stack": 2}], warmup_ticks=1,
+                                   window_ticks=1)
+
+
+@pytest.mark.parametrize("stack", [0, 5, -1, 2.5, True, "4", None])
+def test_job_lua_rejects_a_stack_outside_1_to_4(stack):
+    with pytest.raises(ValueError, match=f"stack must be an integer from 1 to 4, got {re.escape(repr(stack))}"):
+        job_lua("0e", [{**dataclasses.asdict(IRON_PORTS[0]), "stack": stack}], warmup_ticks=1, window_ticks=1)
 
 
 def test_job_lua_research_is_none_or_all():
@@ -248,7 +265,8 @@ def test_fixture_result_passes():
     assert v.passed and v.problems == []
     assert v.summary == [
         "iron-plate: 15.00/s of 15/s (100.0%); delivered 15.00/s, lanes 7.57/7.55",
-        "machines: 3, min working 99.0% (electric-furnace at (3.5, 4.5))",
+        "machines: 3, none blocked on output",
+        "utilisation electric-furnace x3: working min 99.0% at (3.5, 4.5), mean 99.7%",
         "power: harness linked, 0 unpowered machine-ticks",
         "wall: create 1.7s, benchmark 3.5s for 7200 warmup + 3600 window ticks",
     ]
@@ -269,19 +287,94 @@ def test_output_rate_threshold_is_inclusive_at_98_percent(rate, target, passed):
         assert v.problems == [f"output iron-plate: {rate:.2f}/s is 97.9% of the {target:g}/s target (needs >= 98%)"]
 
 
-@pytest.mark.parametrize("working, passed", [(0.95, True), (1.0, True), (0.949, False), (0.5, False)])
-def test_machine_working_threshold_is_inclusive_at_95_percent(working, passed):
-    v = judge(make_result(working=working, statuses={"working": round(working * 3600), "full_output": 100,
-                                                      "no_ingredients": 3}))
+def machine(statuses: dict[str, int], window: int = 3600, **kw) -> MachineMeasure:
+    working = (statuses.get("working", 0) + statuses.get("normal", 0)) / window
+    return MachineMeasure("electric-furnace", (3.5, 1.5), working, statuses, **kw)
+
+
+def with_machines(*machines: MachineMeasure, rate=15.0) -> HarnessResult:
+    return make_result(rate=rate, machines=list(machines))
+
+
+@pytest.mark.parametrize("idle", ["no_ingredients", "item_ingredient_shortage", "fluid_ingredient_shortage",
+                                  "no_recipe"])
+def test_an_idle_machine_passes(idle):
+    """The M2 machine bar: an over-capacity machine waiting for input is reported, not failed."""
+    v = judge(with_machines(machine({"working": 2520, idle: 1080})))
+    assert v.passed, v.problems
+    assert "utilisation electric-furnace: working 70.0% at (3.5, 1.5)" in v.summary
+
+
+@pytest.mark.parametrize("ticks, passed", [(180, True), (0, True), (181, False), (216, False), (3600, False)])
+def test_blocked_on_output_threshold_is_inclusive_at_5_percent(ticks, passed):
+    v = judge(with_machines(machine({"working": 3600 - ticks, "full_output": ticks})))
     assert v.passed is passed
     if not passed:
-        assert v.problems == [f"electric-furnace at (3.5, 1.5): working {working:.1%} of the window "
-                              f"(needs >= 95%), mostly full_output"]
+        assert v.problems == [f"electric-furnace at (3.5, 1.5): blocked on output {ticks / 3600:.1%} of the window "
+                              f"(needs <= 5%), mostly full_output"]
+
+
+def test_every_blocked_status_counts_together():
+    m = machine({"working": 3384, "full_output": 100, "waiting_for_space_in_destination": 80,
+                 "full_burnt_result_output": 36})
+    assert judge(with_machines(m)).problems == [
+        "electric-furnace at (3.5, 1.5): blocked on output 6.0% of the window (needs <= 5%), mostly full_output"]
+    assert judge(with_machines(machine({"working": 3384, "waiting_for_space_in_destination": 216}))).problems == [
+        "electric-furnace at (3.5, 1.5): blocked on output 6.0% of the window (needs <= 5%), mostly "
+        "waiting_for_space_in_destination"]
+
+
+@pytest.mark.parametrize("statuses", [
+    {"working": 3240, "no_power": 360},
+    {"working": 3400, "no_power": 100, "low_power": 100},
+    {"no_power": 3600},
+    {"low_power": 3600},
+])
+def test_unpowered_time_is_not_judged(statuses):
+    """Power is never short in the user's save (user, 2026-10-12): only the output bar sees an unpowered line."""
+    v = judge(with_machines(machine(statuses)))
+    assert v.passed, v.problems
+
+
+def test_output_under_98_percent_fails_even_when_every_machine_passes():
+    idle = machine({"working": 2160, "no_ingredients": 1440})
+    v = judge(with_machines(idle, idle, rate=14.0))
+    assert v.problems == ["output iron-plate: 14.00/s is 93.3% of the 15/s target (needs >= 98%)"]
+
+
+def test_output_growth_still_fails_a_working_machine():
+    v = judge(with_machines(machine({"working": 3600}, output_growth=4)))
+    assert v.problems == [
+        "electric-furnace at (3.5, 1.5): output backing up, 4 more items waiting in it than when the window opened"]
+
+
+def test_summary_reports_utilisation_by_kind():
+    circuit = lambda working, x: MachineMeasure("electromagnetic-plant", (x, 2.0), working / 3600,
+                                                {"working": working, "item_ingredient_shortage": 3600 - working},
+                                                recipe="electronic-circuit", quality="legendary")
+    cable = MachineMeasure("electromagnetic-plant", (2.0, 8.0), 0.73, {"working": 2628, "full_output": 36},
+                           recipe="copper-cable", quality="legendary")
+    furnace = machine({"working": 3600})
+    r = with_machines(circuit(3456, 2.0), cable, circuit(3420, 6.0), furnace)
+    v = judge(r)
+    assert v.passed, v.problems
+    assert v.summary[1:5] == [
+        "machines: 4, most blocked on output 1.0% (electromagnetic-plant at (2, 8))",
+        "utilisation legendary electromagnetic-plant (electronic-circuit) x2: working min 95.0% at (6, 2), "
+        "mean 95.5%",
+        "utilisation legendary electromagnetic-plant (copper-cable): working 73.0% at (2, 8)",
+        "utilisation electric-furnace: working 100.0% at (3.5, 1.5)",
+    ]
+    (c, k, f) = utilisation(r.machines)
+    assert (c.name, c.quality, c.recipe, c.count) == ("electromagnetic-plant", "legendary", "electronic-circuit", 2)
+    assert (c.working_min, c.working_mean, c.lowest.position) == (0.95, pytest.approx(0.955), (6.0, 2.0))
+    assert (k.count, k.working_min, f.recipe) == (1, 0.73, None)
 
 
 def test_custom_thresholds():
     assert judge(make_result(rate=14.0), rate_min=0.9).passed
-    assert not judge(make_result(working=0.97), working_min=0.99).passed
+    blocked = with_machines(machine({"working": 3492, "full_output": 108}))  # 3%
+    assert judge(blocked).passed and not judge(blocked, blocked_max=0.02).passed
 
 
 def test_build_and_power_problems():
@@ -297,9 +390,21 @@ def test_build_and_power_problems():
     assert judge(make_result(power=PowerMeasure(None, 0, 0))).passed  # unreported link isn't a failure by itself
 
 
-def test_unpowered_machine_names_its_status():
-    v = judge(make_result(working=0.0, statuses={"no_power": 3600}))
-    assert v.problems == ["electric-furnace at (3.5, 1.5): working 0.0% of the window (needs >= 95%), mostly no_power"]
+def test_shares_fall_back_on_the_tallied_ticks_when_the_window_is_unknown():
+    r = with_machines(machine({"working": 900, "full_output": 100}, window=1000))
+    assert judge(replace(r, ticks={"warmup": -1, "window": -1})).problems == [
+        "electric-furnace at (3.5, 1.5): blocked on output 10.0% of the window (needs <= 5%), mostly full_output"]
+
+
+def test_a_belt_only_result_is_judged_on_the_sink_rate():
+    """No machine makes the item (produced_rate absent) and no pole to link (harness_linked None): both fine."""
+    r = make_result(rate=240.0, target=240.0, machines=[], power=PowerMeasure(None, 0, 0))
+    v = judge(r)
+    assert v.passed, v.problems
+    assert v.summary[:3] == ["iron-plate: 240.00/s of 240/s (100.0%); delivered 240.00/s, lanes 120.00/120.00",
+                             "machines: none measured", "power: harness not linked (no blueprint pole), 0 unpowered "
+                             "machine-ticks"]
+    assert not judge(make_result(rate=230.0, target=240.0, machines=[])).passed
 
 
 def test_zero_target_and_no_outputs_are_problems_not_crashes():
@@ -339,6 +444,15 @@ def test_crafted_rate_and_machine_crafts_are_parsed():
     assert r.outputs[0].produced_rate == 15.0
     assert (r.machines[0].recipe, r.machines[0].crafts) == ("iron-plate", 187.5)
     assert parse_result(load_fixture(), IRON_PORTS).outputs[0].produced_rate is None
+
+
+def test_machine_quality_speed_and_productivity_are_parsed():
+    data = load_fixture()
+    data["machines"][0].update(quality="legendary", crafting_speed=32.5, productivity=1.75)
+    r = parse_result(data, IRON_PORTS)
+    m = r.machines[0]
+    assert (m.quality, m.crafting_speed, m.productivity) == ("legendary", 32.5, 1.75)
+    assert (r.machines[1].quality, r.machines[1].crafting_speed, r.machines[1].productivity) == (None, None, None)
 
 
 def test_a_machine_whose_output_piles_up_is_backing_up_even_while_working():

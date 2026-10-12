@@ -20,7 +20,9 @@ MOD_NAME = "bps-harness"
 ENABLED_MODS = ("base", "elevated-rails", "quality", "space-age", MOD_NAME)
 RESULT_FILE = "bps-result.json"  # the mod writes it to <write-data>/script-output/
 RESULT_VERSION = 1
-PORT_FIELDS = ("role", "item", "belt", "tile", "direction", "rate")
+PORT_FIELDS = ("role", "item", "belt", "tile", "direction", "rate", "stack")
+PORT_DEFAULTS = {"stack": 1}  # optional port fields, for ports written before they existed
+MAX_STACK = 4  # items per belt slot (the utility constant max_belt_stack_size)
 TAIL_CHARS = 4000
 
 
@@ -57,6 +59,9 @@ class MachineMeasure:
     recipe: str | None = None  # recipe at the end of the window
     crafts: float = 0.0  # crafts during the window, counting partial progress
     output_growth: int = 0  # items added to the machine's result slots over the window: > 0 means backing up
+    quality: str | None = None  # entity quality; None: not reported
+    crafting_speed: float | None = None  # at the end of the window, with modules, beacons and quality
+    productivity: float | None = None  # productivity bonus at the end of the window (modules and research)
 
 
 @dataclass(frozen=True)
@@ -137,14 +142,22 @@ def lua_value(v) -> str:
 
 
 def _port_get(port, name: str):
+    if name in PORT_DEFAULTS:
+        d = PORT_DEFAULTS[name]
+        return port.get(name, d) if isinstance(port, dict) else getattr(port, name, d)
     return port[name] if isinstance(port, dict) else getattr(port, name)
 
 
 def port_table(port) -> dict:
-    """A Port (or any object/dict with its fields) as the plain table job.lua carries."""
+    """A Port (or any object/dict with its fields) as the plain table job.lua carries. Raises ValueError on a
+    stack outside 1..MAX_STACK."""
     t = {f: _port_get(port, f) for f in PORT_FIELDS}
     x, y = t["tile"]
     t["tile"] = [x, y]
+    s = t["stack"]
+    if isinstance(s, bool) or not isinstance(s, int) or not 1 <= s <= MAX_STACK:
+        raise ValueError(f"{t['role']} port {t['item']} at {tuple(t['tile'])}: stack must be an integer from 1 to "
+                         f"{MAX_STACK}, got {s!r}")
     return t
 
 
@@ -274,6 +287,10 @@ def _dict(v) -> dict:
     raise TypeError(f"expected an object, got {v!r}")
 
 
+def _float(v) -> float | None:
+    return None if v is None else float(v)
+
+
 def _position(p) -> tuple[float, float]:
     if isinstance(p, dict):
         return float(p["x"]), float(p["y"])
@@ -337,7 +354,7 @@ def _parse(data, ports, warmup_ticks, window_ticks, wall, run_dir) -> HarnessRes
             item=str(item or (_port_get(port, "item") if port is not None else "?")),
             target=float(target), count=count, rate=rate,
             lane_rates=[float(x) for x in _list(o.get("lane_rates"))],
-            produced_rate=None if o.get("produced_rate") is None else float(o["produced_rate"])))
+            produced_rate=_float(o.get("produced_rate"))))
     outputs += [OutputMeasure(str(_port_get(p, "item")), float(_port_get(p, "rate")), 0, 0.0, [], measured=False)
                 for p in out_ports]
 
@@ -347,7 +364,9 @@ def _parse(data, ports, warmup_ticks, window_ticks, wall, run_dir) -> HarnessRes
         machines.append(MachineMeasure(
             name=str(m["name"]), position=_position(m["position"]), working=float(m["working"]),
             statuses={str(k): int(v) for k, v in _dict(m.get("statuses")).items()},
-            recipe=m.get("recipe"), crafts=float(m.get("crafts", 0.0)), output_growth=int(m.get("output_growth", 0))))
+            recipe=m.get("recipe"), crafts=float(m.get("crafts", 0.0)), output_growth=int(m.get("output_growth", 0)),
+            quality=m.get("quality"), crafting_speed=_float(m.get("crafting_speed")),
+            productivity=_float(m.get("productivity"))))
 
     p = _dict(data.get("power"))
     linked = p.get("harness_linked")

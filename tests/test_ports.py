@@ -64,6 +64,7 @@ def test_example_ports(name):
     assert inp == Port("input", in_item, belt, (0, 0), 8, pytest.approx(in_rate))
     assert out == Port("output", out_item, belt, out_tile, 8, pytest.approx(out_rate))
     assert type(out.direction) is int and type(out.rate) is float
+    assert inp.stack == out.stack == 1  # M1 generators: plain belts, fed and drained by loaders
 
 
 def test_output_rate_without_a_target_is_what_the_machines_make():
@@ -126,6 +127,9 @@ def _off(dx, dy):
         ("output", lambda p: {"direction": 4}, "flows 8, not 4"),
         ("input", lambda p: {"belt": "fast-transport-belt"}, "no fast-transport-belt on that tile"),
         ("output", lambda p: {"role": "outlet"}, "role must be"),
+        ("input", lambda p: {"stack": 0}, "stack must be an integer from 1 to 4 (items per belt slot), got 0"),
+        ("output", lambda p: {"stack": 5}, "stack must be an integer from 1 to 4 (items per belt slot), got 5"),
+        ("input", lambda p: {"stack": 2.0}, "stack must be an integer from 1 to 4 (items per belt slot), got 2.0"),
     ],
 )
 def test_wrong_ports_are_rejected(monkeypatch, name, role, changes, message):
@@ -147,3 +151,10 @@ def test_blocked_output_end_is_rejected(monkeypatch):
     with pytest.raises(BuildError) as ei:
         build({"type": "smelting_column", "count": 2})
     assert any("iron-chest sits next in line" in p for p in ei.value.problems)
+
+
+@pytest.mark.parametrize("stack", [1, 2, 4])
+def test_stacked_ports_are_accepted(monkeypatch, stack):
+    _wrapped(monkeypatch, "smelting_column",
+             lambda entities, notes, ports: (entities, notes, [dataclasses.replace(p, stack=stack) for p in ports]))
+    assert [p.stack for p in build({"type": "smelting_column", "count": 2}).ports] == [stack, stack]
