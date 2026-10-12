@@ -3,7 +3,7 @@
 Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 2026-10-11. **Status (2026-10-12):**
 - A, C and D are done (PR #2, branch `v2-m2-acd`).
 - B is done (PR #3, branch `v2-m2-b`).
-- E is done on branch `v2-m2-e` (see "Progress" below).
+- E is done (PR #4, branch `v2-m2-e`), and its default block is confirmed in-game (2026-10-12).
 - Next: F. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
 - **Input:** iron and copper plates on belts. The block makes its own copper cable.
 - **Output:** 240/s on a stacked turbo belt.
@@ -141,6 +141,7 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
   - The second lane is filled by a side-load stub (T5).
 - **Spec options:** `rate` (up to 240), `quality`, `beacons` (0–2), and `iron_inserters`, `cable_inserters`, `east_inserters` and `north_inserters` (1–4 each). Defaults come from the solver and F28's rates, sized to the 98% bar. Under-sized parts become `WARNING:` notes.
 - **Harness:** the default passes with research on: 239.71/s crafted (99.9%), lanes 120.00/120.00, and the circuit plant blocked 1.8%. One stub inserter gives lanes 120/80 and fails.
+- **In-game, 2026-10-12:** the default block ran in the user's game with both output lanes full and the stub side-loading as designed. The user: "It works perfectly." That's the harness's first in-game agreement on a non-furnace blueprint.
 - **Machine bar:** a machine that unloads only into other machines is no longer judged on blocking (see the amendment above).
 - **For F:**
   - Every link's inserter count is an option, so variants are cheap to enumerate.

@@ -1,7 +1,7 @@
 """Green circuit block (M2, piece E of docs/m2-plan.md): a cable plant feeds a circuit plant by direct insertion,
 both under shared beacons, and the circuits fill both lanes of a stacked turbo belt.
 
-Layout in tile coordinates, approved by the user 2026-10-12. K cable plant, C circuit plant, B beacon (each reaches
+Layout in tile coordinates, approved by the user and confirmed in-game 2026-10-12 (both output lanes full). K cable plant, C circuit plant, B beacon (each reaches
 both plants), S substation; an inserter's arrow is the way it moves items.
 
      x -7 -6 -5 -4 -3 -2 -1  0  1  2  3  4  5
