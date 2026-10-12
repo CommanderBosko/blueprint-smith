@@ -376,6 +376,19 @@ def test_blocked_time_is_only_excused_for_a_machine_feeding_only_machines(unload
             in v.summary
 
 
+@pytest.mark.parametrize("unloads, passed", [
+    ({"machine": 3}, True),  # its buffer fills to a cap and waits: nothing downstream can jam
+    ({"machine": 2, "belt": 1}, False),
+    ({"belt": 2}, False),
+    ({}, False),  # not reported: judged as before
+])
+def test_output_growth_is_only_excused_for_a_machine_feeding_only_machines(unloads, passed):
+    """User, 2026-10-12: the optimiser's cable plant (feeding only the circuit plant) gained 24-44 items in the
+    window and failed good variants on growth alone."""
+    v = judge(with_machines(machine({"working": 3600}, output_growth=44, unloads=unloads)))
+    assert v.passed is passed, v.problems
+
+
 def test_unload_targets_are_parsed():
     data = {"build": {}, "outputs": [], "machines": [
         {"name": "electromagnetic-plant", "position": [4, 7], "working": 0.45, "unloads": {"machine": 3}},

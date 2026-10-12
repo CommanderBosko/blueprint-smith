@@ -44,7 +44,8 @@ Scaffolded around draftsman 3.3.1 with three generators:
 - Milestone 1, the headless evaluation harness, is done.
 - M2 pieces A–E (`docs/m2-plan.md`) are done and merged to `main` (PRs #2–#4, 2026-10-12).
 - Piece F, the optimiser, is built on branch `v2-m2-f` (2026-10-12). `blueprint-smith optimise` picks the 11×11 north layout for 240/s, and that pick worked in-game on 2026-10-12. That completes M2's definition of done.
-- **Next:** merge F, then a follow-up PR that exempts machines feeding only other machines from the output-growth check (user, 2026-10-12).
+- Piece F is merged (PR #7). A follow-up on branch `verdict-growth-exemption` exempts machines that feed only other machines from the output-growth check (user, 2026-10-12).
+- **Next:** M2 is done. M3 and M4 are stretch goals; pick the next milestone with the user.
 
 Logistics and power & fluids generators are paused.
 

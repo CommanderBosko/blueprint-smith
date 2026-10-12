@@ -59,14 +59,14 @@
 
 - **Next:**
   - Open and merge the `v2-m2-f` PR.
-  - Follow-up PR: exempt machine-only feeders from the output-growth check (user, 2026-10-12).
+  - Merge the follow-up PR that exempts machine-only feeders from the output-growth check (user, 2026-10-12). With it, all 8 of the optimiser's runs pass.
 - **M2 done (2026-10-12):** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and that pick worked in the user's game.
 - **Long term:** M3 (learning from existing blueprints) and M4 (freeform placement) are stretch goals. The logistics and power & fluids generators are paused.
 - **Still open from v1:** 2 more `steel_column` samples to reach the brief's 3 per type.
 
 ## Recent Decisions
 
-- **Machines that unload only into other machines will be exempt from the output-growth check too** (user, 2026-10-12). Under direct insertion, their buffer fills to a cap and then they wait, so growth can't jam anything. In every optimiser run it falsely failed 2 of 8 good variants. It ships as a follow-up PR after F.
+- **Machines that unload only into other machines are exempt from the output-growth check too** (user, 2026-10-12). Under direct insertion, their buffer fills to a cap and then they wait, so growth can't jam anything. Before the exemption it falsely failed 2 of 8 good variants in every optimiser run; with it, all 8 pass and the pick is the same (branch `verdict-growth-exemption`).
 - **Stub inserters go at the output end of the plant's edge, and the stub starts under the first one** (user, 2026-10-12, an in-game tweak that saves 2 turbo belts). The generator and `check_flow` follow it (T5).
 - **F covers the optimiser and a second layout, built together** (user, 2026-10-12). The second layout is `copper: "north"`, approved from an ASCII preview over a vertically stacked alternative of the same size.
 - **Variants are solver-feasible without a margin, and the harness decides the borderline ones.** `variants` keeps a spec if its `sizing` bound reaches 98% of the rate, so 1 iron inserter (87.47/s for 87.27/s) is tried even though the static 98% margin warns about it. The harness passed it.
@@ -99,7 +99,6 @@
 
 - **Inserter rates are measured for legendary stack inserters only.** At another `quality`, `circuit_block`'s defaults and warnings use the legendary numbers, and only the harness knows.
 - **The machine→machine blocking exemption hides an under-sized hand-off** (from the PR #4 review). With `cable_inserters: 1` the verdict fails only on the output rate and no longer names the cable plant or its link. F doesn't need that, because variants are sized by the solver.
-- **Exempt machines are still judged on output growth (`GROWTH_MAX`), and it now trips.** In F's real run, 2 of 8 variants failed on the cable plant's output growing by 44 and 24 items. That plant feeds only machines and is over-capacity, and it hadn't filled its buffer by the time the window opened. These are false failures: they cost a few runs but didn't change the winner. **Decided (user, 2026-10-12): exempt them from growth too**, for the same reason as the blocking exemption. That's the next follow-up PR.
 - **The chosen 240/s block runs iron at 0.2% headroom:** 1 inserter carries 87.47/s against 87.27/s needed. It worked in-game on 2026-10-12. If it ever starves, the next-best variant (2 iron inserters) has the same footprint and draws 0.84 MW more.
 - **The optimiser ranks by footprint and power only, so it can't see belt counts.** The user's stub tweak saved 2 belts without changing either. The generator now builds the short stub itself, but a future layout choice that only saves materials would tie on the JSON tie-break.
 - **`circuit_block`'s `check_flow` doesn't check belt continuity:** a missing iron, stub or output belt tile passes statically and only the harness catches it.
@@ -116,5 +115,5 @@
 ## Next Steps
 
 1. Merge `v2-m2-f` (M2 done).
-2. Follow-up PR: exempt machines that unload only into other machines from the output-growth check (`GROWTH_MAX`), with a test. Decided by the user 2026-10-12.
+2. Merge the `verdict-growth-exemption` PR.
 3. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).
