@@ -1,3 +1,36 @@
+## Session: 2026-10-12 — M2 pieces A–E: harness, solver, checks, measured rates, circuit block
+
+**Focus**: Build M2 up to the green circuit block, piece by piece: A, C and D in parallel, then B, then E.
+
+### What changed (and why)
+- **A, C, D (sub-agents in parallel):**
+  - A: the harness feeds stacked belts by script (loaders can't stack), runs with all research, and applies the new machine bar.
+  - C: `effects.py` models quality, modules, beacons and research. Its fit of 2.0's whole-percent rounding on the server matched 476 of 476 values.
+  - D: new generic checks for modules, beacon reach, underground pairing and hidden entities, each confirmed against the server.
+- **B:** micro-blueprints with script-fed machines measured one legendary stack inserter: 87.47/s from a stacked belt, 120/s plant to plant, 80/s onto a lane (2 fill it to 120). The solver matches the harness to 1e-6.
+- **E:** `circuit_block`, the layout the user approved. A side-load stub fills the second output lane (T5). It makes 240/s in the harness, and the user confirmed it in-game: "It works perfectly".
+
+### Decisions
+- Power is never judged: the user's save has plenty (user).
+- A machine that unloads only into other machines isn't judged on blocking: under direct insertion, spare capacity shows as blocked instead of idle (user).
+- Copper input stacked like iron (user). Each piece gets its own stacked PR (user).
+- B's rates are stored in `effects.py` and held to the harness by tests.
+
+### Issues / surprises
+- `products_finished` counts crafts (bonus crafts included), not items. It was recorded wrong yesterday; F18 is fixed.
+- Inserters' pick-up and drop targets aren't set until they've run, so the mod reads where machines unload at the end of the window.
+- The plan's 1% solver tolerance couldn't see the 2.0 rounding, so plant speed is held to 1e-6.
+- Two cleanup commands were denied. The user deleted the leftover run dirs.
+- Secret scan (project `/secret-scan`): clean across the tree and all 14 commits.
+
+### Next session
+- Merge PRs #2 → #3 → #4.
+- Decide F's scope (tune one layout, or add a second first), then build the optimiser.
+
+**Commits**: `e17499d..0c7c24c` (5 commits, on the stacked PR branches)
+
+---
+
 ## Session: 2026-10-11 (afternoon) — Repo, lane balancing, steel_column, headless harness, M2 plan
 
 **Focus**: Finish the smelting samples in-game, add steel from ore, then turn "an ML algorithm to optimise blueprints" into a scoped v2 and build its first milestone.
