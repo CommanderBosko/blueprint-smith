@@ -8,11 +8,11 @@ from types import SimpleNamespace
 import pytest
 from draftsman.entity import new_entity
 
-from blueprint_smith import cli, generators
+from blueprint_smith import cli, generators, pipeline
 from blueprint_smith import optimise as opt
 from blueprint_smith.errors import SpecError
 from blueprint_smith.generators import Port
-from blueprint_smith.pipeline import build
+from blueprint_smith.pipeline import LABEL, build
 
 BELT = "turbo-transport-belt"
 EAST = 4
@@ -31,7 +31,10 @@ def toy_line(spec: dict):
 
 
 def _register(monkeypatch, specs, research="none"):
-    """Make `toy_line` the only type with variants; it offers `specs` (a length alone means {"length": n})."""
+    """Make `toy_line` the only type with variants; it offers `specs` (a length alone means {"length": n}). The
+    toy lines leave out the output's lane balancer (P4), so a line of n is n x 1 tiles."""
+    monkeypatch.setattr(pipeline, "balancers", lambda ports: ([], ports))
+    monkeypatch.setattr(pipeline, "check_balancers", lambda bp, ports: [])
     specs = [s if isinstance(s, dict) else {"type": "toy_line", "length": s} for s in specs]
     requests = []
 
@@ -54,7 +57,7 @@ class FakeHarness:
         self.calls = []
 
     def __call__(self, built, *, research, keep_dir):
-        n = len(built.blueprint.entities)
+        n = sum(e.name != LABEL for e in built.blueprint.entities)
         self.calls.append((n, research, keep_dir))
         passed = n not in self.failing
         problems = [] if passed else [f"output {ITEM}: line of {n} too slow"]
@@ -217,9 +220,11 @@ def test_harness_errors_propagate(monkeypatch):
 
 
 # --- footprint and power on the real circuit block ---------------------------------------------------------------
-def test_footprint_of_the_default_circuit_block_is_13_by_11():
-    """Bounding box AABB(-6.9, -4.7, 5.9, 5.9): collision boxes sit inside their tiles, so the edges round out."""
-    assert opt.footprint(build({"type": "circuit_block"}).blueprint) == (13, 11)
+def test_footprint_of_the_default_circuit_block_is_14_by_14():
+    """Leaving out the input labels (P3), the box runs from (-6.9, -4.7) to (6.9, 8.9): collision boxes sit inside
+    their tiles, so the edges round out.
+    The block is 13 x 11; the output's lane balancer (P4) adds a column east and 3 rows south."""
+    assert opt.footprint(build({"type": "circuit_block"}).blueprint) == (14, 14)
 
 
 def test_footprint_counts_whole_tiles_of_the_belts(monkeypatch):

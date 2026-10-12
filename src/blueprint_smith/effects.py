@@ -413,6 +413,13 @@ def beacon_power(beacon) -> float:
 # (F1), and a stacked turbo lane carries 120/s, so a second inserter on the same lane adds only the 40/s left.
 LEGENDARY_STACK_INSERTER = {
     "belt_to_machine": 87.47,  # from a full stacked turbo belt
+    # from a full stacked turbo belt with one item per lane (green | plastic into a red plant): the total of both
+    # items, the same as from a one-item belt (F30)
+    "mixed_belt_to_machine": 87.47,
     "machine_to_machine": 120.0,
     "machine_to_belt": 80.0,  # onto an empty stacked turbo lane
 }
+# Items/s one legendary long-handed inserter moves with everything researched (hand 1 + 3 = 4, one belt stack) from a
+# full stacked turbo belt 2 tiles out into a machine, measured on the headless 2.0.77 server (F29). Inserters on the
+# same machine edge add up.
+LEGENDARY_LONG_INSERTER = {"belt_to_machine": 13.33}

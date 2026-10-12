@@ -176,6 +176,13 @@ local function build(force)
   for _, p in pairs(surface.find_entities_filtered{type = "item-request-proxy"}) do fulfil(p) end
   storage.build.ghosts_left = surface.count_entities_filtered{type = {"entity-ghost", "tile-ghost"}}
   storage.build.proxies_left = surface.count_entities_filtered{type = "item-request-proxy"}
+  -- display panels only label the inputs (P3): clear them so the loaders fit, and keep them out of the box,
+  -- as pipeline.origin does
+  local kept = {}
+  for _, e in pairs(built) do
+    if e.valid and e.type == "display-panel" then e.destroy() else table.insert(kept, e) end
+  end
+  built = kept
 
   local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
   for _, e in pairs(built) do

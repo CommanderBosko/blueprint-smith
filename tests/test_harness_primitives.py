@@ -1,6 +1,8 @@
 """M2 piece B: the primitives the green-circuit block is sized from, measured in micro-blueprints on the headless
-2.0.77 server (docs/m2-plan.md; F28 in docs/techniques.md). Probes script-feed or drain the machines around the
-link under test, so that link is the only bottleneck. Every case runs twice, to show the numbers repeat.
+2.0.77 server (docs/m2-plan.md; F28 in docs/techniques.md). M2b piece A adds the red-circuit block's: the long-handed
+inserter (F29) and a stack inserter taking from a mixed belt (F30) (docs/red-circuits-plan.md). Probes script-feed
+or drain the machines around the link under test, so that link is the only bottleneck. Every case runs twice, to
+show the numbers repeat.
 
 Skipped when no headless server is installed. Cases run in parallel.
 """
@@ -17,11 +19,14 @@ from blueprint_smith.pipeline import origin
 
 pytestmark = pytest.mark.harness
 
-L, BELT, INSERTER = "legendary", "turbo-transport-belt", "stack-inserter"
+L, BELT, INSERTER, LONG = "legendary", "turbo-transport-belt", "stack-inserter", "long-handed-inserter"
 WINDOW = 3600
 RATES = effects.LEGENDARY_STACK_INSERTER
+LONG_RATES = effects.LEGENDARY_LONG_INSERTER
 # a 4x4 plant at tiles 0-3 takes up to 4 beacons without them reaching anything else in these layouts
 BEACONS = [(-3, 0), (-3, 3), (0, -3), (0, 4)]
+# 11 beacons: a column on each side of the plant (the east one past the belt at x=5), and 3 more north and south
+MIXED_BEACONS = [(-3, y) for y in (-5, -2, 1, 4)] + [(6, y) for y in (-5, -2, 1, 4)] + [(0, -3), (0, 4), (3, 4)]
 
 
 def plant(at, recipe):
@@ -36,9 +41,9 @@ def beacon(at):
     return e
 
 
-def inserters(n, direction):
-    """n stack inserters down the plant's east edge (x=4), picking up from `direction`."""
-    return [new_entity(INSERTER, tile_position=(4, y), direction=direction, quality=L) for y in range(n)]
+def inserters(n, direction, name=INSERTER):
+    """n inserters (stack by default) down the plant's east edge (x=4), picking up from `direction`."""
+    return [new_entity(name, tile_position=(4, y), direction=direction, quality=L) for y in range(n)]
 
 
 def blueprint(*entities, substation=(-5, -5)) -> Blueprint:
@@ -62,6 +67,30 @@ def belt_to_plant(recipe, item, feed):
     bp = blueprint(plant((0, 0), recipe), *map(beacon, BEACONS), *inserters(1, 4),
                    *(new_entity(BELT, tile_position=(5, y), direction=8) for y in range(-2, 4)))
     return bp, [Port("input", item, BELT, tile(bp, 5, -2), 8, 240, 4)], [Probe(tile(bp, 1, 1), feed, drain=True)]
+
+
+def long_to_plant(n):
+    """A full stacked copper belt 2 tiles out (x=6, nothing at x=5) -> n long-handed inserters -> a 4-beacon cable
+    plant far faster than them."""
+    bp = blueprint(plant((0, 0), "copper-cable"), *map(beacon, BEACONS), *inserters(n, 4, LONG),
+                   *(new_entity(BELT, tile_position=(6, y), direction=8) for y in range(-2, 4)))
+    return bp, [Port("input", "copper-plate", BELT, tile(bp, 6, -2), 8, 240, 4)], [Probe(tile(bp, 1, 1), (), drain=True)]
+
+
+def mixed_belt_to_plant():
+    """Green and plastic side-loaded from opposite sides onto one stacked belt (F3: x=5, flowing south, dead end), so
+    each lane carries one item -> 1 inserter -> a red plant sped up past it (5 speed modules, 11 beacons), its cable
+    fed and its output drained by script. A port feeds one item, hence the two feeder belts at y=-6."""
+    red = new_entity("electromagnetic-plant", tile_position=(0, 0), quality=L, recipe="advanced-circuit")
+    red.request_modules("speed-module-3", range(5), quality=L)
+    bp = blueprint(red, *map(beacon, MIXED_BEACONS), *inserters(1, 4),
+                   *(new_entity(BELT, tile_position=(5, y), direction=8) for y in range(-6, 4)),
+                   *(new_entity(BELT, tile_position=(x, -6), direction=4) for x in (3, 4)),
+                   *(new_entity(BELT, tile_position=(x, -6), direction=12) for x in (6, 7)),
+                   new_entity("substation", tile_position=(-1, 7)), substation=(-1, -8))
+    ports = [Port("input", "electronic-circuit", BELT, tile(bp, 3, -6), 4, 240, 4),
+             Port("input", "plastic-bar", BELT, tile(bp, 7, -6), 12, 240, 4)]
+    return bp, ports, [Probe(tile(bp, 1, 1), ("copper-cable",), drain=True)]
 
 
 def plant_to_plant():
@@ -89,6 +118,9 @@ def plant_speed(n):
 CASES = {
     "belt>circuit": lambda: belt_to_plant("electronic-circuit", "iron-plate", ("copper-cable",)),
     "belt>cable": lambda: belt_to_plant("copper-cable", "copper-plate", ()),
+    "long>cable x1": lambda: long_to_plant(1),
+    "long>cable x2": lambda: long_to_plant(2),
+    "mixed>red": mixed_belt_to_plant,
     "plant>plant": plant_to_plant,
     "plant>belt x1": lambda: plant_to_belt(1),
     "plant>belt x2": lambda: plant_to_belt(2),
@@ -145,6 +177,45 @@ def test_one_inserter_takes_87_per_second_from_a_full_stacked_belt(runs, name):
     assert (i.quality, i.hand) == (L, 16)
     assert only_working(i.statuses)
     assert m.statuses.get("item_ingredient_shortage", 0) > 0.2 * WINDOW
+
+
+def per_second(n):
+    return n / (WINDOW / 60)
+
+
+@pytest.mark.parametrize("n", [1, 2])
+def test_long_handed_inserters_take_13_per_second_each_from_a_full_stacked_belt(runs, n):
+    """Its researched hand (1 + 3) is one belt stack. Two on the same plant edge add up: neither slows the other."""
+    _, (r, _) = runs[f"long>cable x{n}"]
+    (m,) = r.machines
+    assert len(r.inserters) == n
+    for i in r.inserters:
+        assert i.rate == pytest.approx(LONG_RATES["belt_to_machine"], rel=0.02)
+        assert (i.name, i.quality, i.hand) == (LONG, L, 4)
+        assert only_working(i.statuses)
+    assert m.statuses.get("item_ingredient_shortage", 0) > 0.5 * WINDOW
+    # a cable craft eats 1 copper; products_finished counts productivity's bonus crafts too (F18)
+    assert per_second(m.crafts) / (1 + m.productivity) == pytest.approx(n * LONG_RATES["belt_to_machine"], rel=0.02)
+
+
+def test_one_inserter_takes_87_per_second_from_a_mixed_belt(runs):
+    """Green on one lane and plastic on the other: the hand holds one item, so a swing takes from one lane only,
+    yet it moves as much as from a one-item belt. The harness counts an inserter's items, not which item: the split
+    comes from the plant, which eats 2 green and 2 plastic a craft, so over the window it took half of each."""
+    bp, (r, _) = runs["mixed>red"]
+    (i,) = r.inserters
+    (m,) = r.machines
+    (entity, beacons), = checks.beacon_targets(bp).items()
+    want = effects.entity_rates(entity, beacons=beacons, research="all")
+    demand = want.ingredients["electronic-circuit"] + want.ingredients["plastic-bar"]
+    assert len(beacons) == len(MIXED_BEACONS) and demand > 1.05 * RATES["mixed_belt_to_machine"]  # the plant is faster
+    assert m.crafting_speed == pytest.approx(want.crafting_speed, rel=1e-6)
+    assert i.rate == pytest.approx(RATES["mixed_belt_to_machine"], rel=0.02)
+    assert (i.quality, i.hand) == (L, 16)
+    assert only_working(i.statuses)
+    assert m.statuses.get("item_ingredient_shortage", 0) > 0.02 * WINDOW  # the plant waits on the inserter
+    green = plastic = 2 * per_second(m.crafts) / (1 + m.productivity)
+    assert green + plastic == pytest.approx(i.rate, rel=0.02)
 
 
 def test_one_inserter_moves_120_per_second_between_plants(runs):

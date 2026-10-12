@@ -26,9 +26,11 @@ def test_column_builds_and_round_trips(count):
     modules = math.ceil(count / 2)
     assert kinds.count("electric-furnace") == 2 * count  # an iron and a steel furnace per pair
     assert kinds.count("fast-inserter") == 3 * count
-    assert kinds.count("transport-belt") == 12 * modules  # 6 ore belt + 6 steel belt per module
+    # 6 ore belt + 6 steel belt per module, and 6 in the output's lane balancer (P4)
+    assert kinds.count("transport-belt") == 12 * modules + 6
     assert kinds.count("medium-electric-pole") == 3 * modules
-    assert "splitter" not in kinds  # steel never fills one lane, so no lane balancing
+    # steel never fills one lane, so no lane balancing (T1) inside: the only splitter is the output's (P4)
+    assert kinds.count("splitter") == 1
     assert Blueprint.from_string(r.string).to_string() == r.string
 
 
