@@ -78,8 +78,9 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
 - Confirmed layouts: `tests/test_confirmed.py` checks every in-game-confirmed block against its golden snapshot in `tests/fixtures/confirmed/`, entity for entity. After an intended layout change, re-pin with `BPS_UPDATE_SNAPSHOTS=1 .venv/bin/pytest -q tests/test_confirmed.py`, then re-test in-game (`docs/techniques.md` checklist item 8).
 - Lint: `.venv/bin/ruff check`. It checks errors only (`E4,E7,E9,F` in `pyproject.toml`; `spike/` is excluded). `pyrightconfig.json` points editors at `.venv` and `src/`, but pyright isn't gated: most of its ~78 errors come from draftsman's types.
 - CI (`.github/workflows/ci.yml`) runs on every push to `main` and every PR:
-  - `ruff check`, then the full suite, harness included, with the headless server cached between runs.
-  - It sets `BPS_REQUIRE_HARNESS=1`. With that set, `tests/conftest.py` fails any skipped test, so a missing server can't turn the harness tests into silent skips. Set it locally to check the same thing.
+  - `lint` and `quick` (`pytest -m "not harness"`) run on GitHub-hosted runners.
+  - `harness` runs the full suite on a self-hosted runner labelled `factorio` (the user's NixOS machine), because factorio.com answers 403 to the server download from GitHub's runners (2026-10-12). It never runs for a fork's PR.
+  - `harness` sets `BPS_REQUIRE_HARNESS=1`. With that set, `tests/conftest.py` fails any skipped test, so a missing server can't turn the harness tests into silent skips. Set it locally to check the same thing.
 
 ## Code architecture (`src/blueprint_smith/`)
 

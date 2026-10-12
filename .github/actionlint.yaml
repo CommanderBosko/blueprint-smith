@@ -1,0 +1,3 @@
+self-hosted-runner:
+  labels:
+    - factorio  # the user's machine, which has the headless server (ci.yml's harness job)

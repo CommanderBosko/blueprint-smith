@@ -16,12 +16,8 @@ jobs:
       - run: pip install ruff
       - run: ruff check
 
-  test:
+  quick:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      # A skip fails the run (tests/conftest.py), so the harness tests can't quietly drop out.
-      BPS_REQUIRE_HARNESS: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -29,20 +25,19 @@ jobs:
           python-version: "3.14"
           cache: pip
       - run: pip install -e ".[dev]"
+      - run: pytest -q -rs -m "not harness"
 
-      # The 2.0.77 headless server (~57 MB download, 350 MB unpacked): fetched from factorio.com once, then cached.
-      # Saved straight after the download, so a failing test run doesn't throw it away.
-      - id: server
-        uses: actions/cache/restore@v6
-        with:
-          path: ~/.cache/blueprint-smith/factorio-headless-2.0.77
-          key: factorio-headless-2.0.77
-      - if: steps.server.outputs.cache-hit != 'true'
-        run: blueprint-smith install-server
-      - if: steps.server.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: ~/.cache/blueprint-smith/factorio-headless-2.0.77
-          key: factorio-headless-2.0.77
-
-      - run: pytest -q -rs
+  harness:
+    # factorio.com answers 403 to the headless server download from GitHub-hosted runners, so the full suite runs
+    # on a self-hosted runner that already has the server. Never for a fork's PR: the repo is public, and the runner
+    # is a real machine.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, factorio]
+    timeout-minutes: 20
+    env:
+      # A skip fails the run (tests/conftest.py), so the harness tests can't quietly drop out.
+      BPS_REQUIRE_HARNESS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]"
+      - run: .venv/bin/pytest -q -rs
