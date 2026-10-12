@@ -107,10 +107,12 @@ def need_server():
 def runs() -> dict[str, tuple[Blueprint, list[harness.HarnessResult]]]:
     need_server()
     jobs = {name: make() for name, make in CASES.items()}
+    # serially: draftsman records warnings process-wide, and each case runs twice at once below
+    strings = {name: bp.to_string() for name, (bp, _, _) in jobs.items()}
 
     def go(key):
-        bp, ports, probes = jobs[key[0]]
-        return key, harness.run(bp.to_string(), ports, probes=probes, research="all", warmup_ticks=600,
+        _, ports, probes = jobs[key[0]]
+        return key, harness.run(strings[key[0]], ports, probes=probes, research="all", warmup_ticks=600,
                                 window_ticks=WINDOW)
 
     keys = [(name, i) for name in jobs for i in range(2)]
