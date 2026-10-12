@@ -36,14 +36,15 @@ When you need a decision, choice, or clarification from the user — not just in
 Scaffolded around draftsman 3.3.1 with three generators:
 - `smelting_column`: all 3 samples confirmed in-game.
 - `steel_column`: ore to steel by direct insertion; first sample confirmed in-game.
-- `circuit_block`: M2's 240/s green circuit block; confirmed in-game 2026-10-12.
+- `circuit_block`: M2's 240/s green circuit block. The west layout (the default) and the compact `copper: "north"` layout (11×11, the optimiser's pick) were both confirmed in-game on 2026-10-12. Following the user's in-game tweak, the stub now starts under its first inserter.
 
 `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`.
 
 **Now: the v2 blueprint optimizer** (`PROJECT_BRIEF.md`, v2 section, confirmed 2026-10-11).
 - Milestone 1, the headless evaluation harness, is done.
 - M2 pieces A–E (`docs/m2-plan.md`) are done and merged to `main` (PRs #2–#4, 2026-10-12).
-- **Next: piece F, the optimiser.** Decide its scope first: tune `circuit_block` only, or add a second layout (see `project-state.md`).
+- Piece F, the optimiser, is built on branch `v2-m2-f` (2026-10-12). `blueprint-smith optimise` picks the 11×11 north layout for 240/s, and that pick worked in-game on 2026-10-12. That completes M2's definition of done.
+- **Next:** merge F, then a follow-up PR that exempts machines feeding only other machines from the output-growth check (user, 2026-10-12).
 
 Logistics and power & fluids generators are paused.
 
@@ -60,16 +61,17 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
 
 - Tests: `.venv/bin/pytest -q` (about 70 s, because the `harness`-marked tests run the real headless server; they skip when it isn't installed). Quick run without them: `.venv/bin/pytest -q -m "not harness"`. Single test: `.venv/bin/pytest -q tests/test_smelting_column.py::test_reversed_inserters_are_rejected`
 - Build a blueprint: `.venv/bin/blueprint-smith build examples/smelting_column.json` (`-` reads the spec from stdin, `-o FILE` writes the string). Notes go to stderr, the string to stdout. Exit codes: 0 ok, 1 failed validation, 2 bad spec.
-- Evaluate in the headless harness: `.venv/bin/blueprint-smith evaluate SPEC` (verdict on stdout), or `build SPEC --evaluate` (prints the string only if the verdict passes). `--research all` judges with every technology researched (default: none; M2 blocks such as `circuit_block` need `all`), and `--keep-run` keeps the run dir. Exit 3 means the harness couldn't run. `blueprint-smith install-server` downloads the 2.0.77 headless server into `~/.cache/blueprint-smith/`, and `$BPS_FACTORIO_SERVER` overrides its path.
+- Evaluate in the headless harness: `.venv/bin/blueprint-smith evaluate SPEC` (verdict on stdout), or `build SPEC --evaluate` (prints the string only if the verdict passes). `--research` defaults to the research the spec's type registers (`circuit_block`: all; the furnace columns: none), and `--keep-run` keeps the run dir. Exit 3 means the harness couldn't run.
+- Optimise: `.venv/bin/blueprint-smith optimise REQUEST`, where REQUEST is JSON such as `{"item": "electronic-circuit", "rate": 240}`. It prints the report to stderr and the winner's string to stdout; options are `-o FILE`, `--spec-out FILE`, `--jobs N`, `--max-runs N` and `--keep-run`. Exit 1 means no variant passed. 240/s takes about 17 s. `blueprint-smith install-server` downloads the 2.0.77 headless server into `~/.cache/blueprint-smith/`, and `$BPS_FACTORIO_SERVER` overrides its path.
 - Decode: `.venv/bin/blueprint-smith decode STRING` or `@file`. List types: `.venv/bin/blueprint-smith types`.
 - No linter is configured. `pyrightconfig.json` points editors at `.venv` and `src/`.
 
 ## Code architecture (`src/blueprint_smith/`)
 
 - `pipeline.build(spec)` is the single entry point: look up the generator by `spec["type"]`, build a draftsman `Blueprint`, then **turn every draftsman warning into a failure** (overlap, unknown entity, etc. only warn in draftsman) and run all checks. Any problem raises `BuildError`; a bad spec raises `SpecError`.
-- `generators/`: a generator is `spec -> (entities, notes, ports)`, registered with `@register(name, checks=(...))`. A `Port` is a belt end the harness feeds or drains. `pipeline.build` makes port tiles relative to the blueprint's top-left and fails a port that isn't on an open belt end. Layout-specific checks go in `checks=` and are keyed by type name, so wrapping a generator in a test still applies them.
+- `generators/`: a generator is `spec -> (entities, notes, ports)`, registered with `@register(name, checks=(...), variants=..., research=...)`. `variants(request)` lists the candidate specs the optimiser may try, and `research` is what the harness runs the type with. A `Port` is a belt end the harness feeds or drains. `pipeline.build` makes port tiles relative to the blueprint's top-left and fails a port that isn't on an open belt end. Layout-specific checks go in `checks=` and are keyed by type name, so wrapping a generator in a test still applies them.
 - `generators/columns.py`: building blocks shared by the furnace columns (spec options, `count`/`rate`, the 6-row A/B module).
-- `generators/circuit_block.py`: the M2 green circuit block. Its spec options (beacons, inserters per link) are what the optimiser varies.
+- `generators/circuit_block.py`: the M2 green circuit block. Its spec options (copper side, beacons, inserters per link) are what the optimiser varies. `sizing` holds the link math that both the notes and `variants` use.
 - `checks.py`: generic checks for every blueprint. These can't tell a reversed inserter from a correct one; direction/flow correctness is each generator's own `check_flow`.
   - Inserter pickup and drop positions hit an entity.
   - Electric consumers are inside a pole's supply area.
@@ -81,6 +83,10 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
   - `entity_rates(machine, beacons=checks.beacon_targets(bp)[machine])`.
   - Measured inserter rates in `LEGENDARY_STACK_INSERTER`.
 - Notes vs. errors: statically, real throughput is best-effort, so it appears as `WARNING:` notes (for example a column whose output is more than its plate belt carries), never as failures. The headless harness (amended P2) turns throughput into a hard pass/fail.
+- `optimise.py`: M2 piece F.
+  - Builds every variant serially.
+  - Ranks them by footprint (`footprint`: bounding-box tiles), then by `power_estimate`, a tie-break only, since the harness doesn't measure power draw.
+  - Runs the harness best-first in parallel batches, and stops at the first batch that holds a pass.
 - `harness/`: the headless evaluation harness (technique H1 in `docs/techniques.md`).
   - `mod/control.lua` is the in-game side: it pastes, feeds, powers and measures, then writes a JSON result.
   - `runner.py` runs `--create` then `--benchmark` in a temp dir and parses the result. `verdict.py` judges it.

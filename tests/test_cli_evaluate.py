@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from blueprint_smith import cli, harness
+from blueprint_smith import cli, generators, harness
 from blueprint_smith.evaluate import Evaluation
 from blueprint_smith.harness import BuildStatus, HarnessResult, OutputMeasure, PowerMeasure, Verdict
 
@@ -40,6 +40,30 @@ def test_build_evaluate_withholds_the_string_on_a_failed_verdict(tmp_path, monke
     monkeypatch.setattr(cli, "evaluate", _fake_evaluate(True))
     assert cli.main(["build", _spec(tmp_path, {"type": "smelting_column", "count": 2}), "--evaluate"]) == 0
     assert capsys.readouterr().out.startswith("0e")
+
+
+@pytest.mark.parametrize("command", [["evaluate"], ["build", "--evaluate"]], ids=["evaluate", "build"])
+@pytest.mark.parametrize("declared, flag, research", [
+    ("none", [], "none"),
+    ("all", [], "all"),
+    ("all", ["--research", "none"], "none"),
+    ("none", ["--research", "all"], "all"),
+])
+def test_research_defaults_to_what_the_type_declares(tmp_path, monkeypatch, command, declared, flag, research):
+    """Without --research the harness gets the spec type's generators.RESEARCH (M2 blocks need "all"); the flag
+    still wins."""
+    calls = []
+    fake = _fake_evaluate(True)
+
+    def evaluate(built, **options):
+        calls.append(options)
+        return fake(built, **options)
+
+    monkeypatch.setitem(generators.RESEARCH, "smelting_column", declared)
+    monkeypatch.setattr(cli, "evaluate", evaluate)
+    spec = _spec(tmp_path, {"type": "smelting_column", "count": 2})
+    assert cli.main([command[0], spec, *command[1:], *flag]) == 0
+    assert [c["research"] for c in calls] == [research]
 
 
 def test_evaluate_without_a_server_exits_3(tmp_path, monkeypatch, capsys):

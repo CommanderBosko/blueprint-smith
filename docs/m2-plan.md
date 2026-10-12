@@ -4,7 +4,7 @@ Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 202
 - A, C and D are done (PR #2, branch `v2-m2-acd`).
 - B is done (PR #3, branch `v2-m2-b`).
 - E is done (PR #4, branch `v2-m2-e`), and its default block is confirmed in-game (2026-10-12).
-- Next: F. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
+- F is built (branch `v2-m2-f`): `blueprint-smith optimise` turns "fill a turbo belt of green circuits" into an 11×11 blueprint that passes the harness. **The user's in-game spot-check passed on 2026-10-12, so M2 is done.**
 - **Input:** iron and copper plates on belts. The block makes its own copper cable.
 - **Output:** 240/s on a stacked turbo belt.
 - **Defaults:** everything researched; legendary electromagnetic plants, legendary productivity-3 in the machines, legendary beacons with legendary speed-3.
@@ -148,6 +148,20 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
   - The footprint is fixed at 13×11 except through the beacon count.
   - Builds need `research="all"`; the notes say so.
 
+**F, 2026-10-12** (527 tests pass, 1 strict xfail). The user chose to build the optimiser and a second layout together, by two sub-agents in parallel:
+- **Registry contract:** `register(..., variants=, research=)`. `VARIANTS[type](request)` yields candidate specs that the solver says could pass, and `RESEARCH[type]` is the research the harness needs. `evaluate` and `build --evaluate` now default `--research` to it, so `circuit_block` no longer needs `--research all` by hand.
+- **Second layout, `copper: "north"` (T6):** approved by the user. Copper comes down into the cable plant from beside the substation, so the block is 11×11 (121 tiles) instead of 13×11 (143). At 240/s the machines and beacons can't shrink, so input routing is the only footprint lever. Harness: 239.74/s crafted, lanes 120/120.
+- **`circuit_block.sizing`** holds the link math the notes and `variants` share. Its `bound` is the block's maximum output with no margin. `variants` keeps every copper side, beacon count and inserter count whose bound reaches 98% of the rate: 144 at 240/s.
+- **`optimise.py` and `blueprint-smith optimise REQUEST`:**
+  1. Builds every variant serially.
+  2. Ranks by footprint, then by a power estimate (`power_estimate`: machines and beacons from `effects.py`, plus an upper bound per inserter). The harness doesn't measure power draw.
+  3. Runs the harness best-first in parallel batches and stops at the first batch with a pass.
+- **The real run** (`{"item": "electronic-circuit", "rate": 240}`) took 17 s and 8 harness runs. It chose the north layout with 2 beacons and iron 1, cable 3, east 2, north 2 inserters: 240.01/s, lanes 120/120.
+  - **One iron inserter** carries 87.47/s against 87.27/s needed. The static 98% margin warns about it, but the harness passes it.
+  - **Two of the 8 failed** on the cable plant's output growing (44 and 24 items over the window), although it feeds only machines. That's the `GROWTH_MAX` follow-up from the PR #4 review showing up, and it doesn't change the winner. The same two fail on every run.
+- **In-game, 2026-10-12:** the user ran the optimiser's pick: "It worked well". Their screenshot shows both lanes full, with the single iron inserter keeping up.
+- **The user's tweak (T5):** they moved the 2 stub inserters to the east end of the plant's top edge and started the stub under the first one, which saves 2 turbo belts. The generator now builds the stub that way for both layouts, and `check_flow` rejects stub belt west of the first stub inserter, or a gap in the stub. Harness lanes stay at 120/120, and the optimiser's pick is unchanged.
+
 ## Verification plan
 
 1. **Baseline:** `.venv/bin/pytest -q` is green (187 passed, 1 xfail).
@@ -163,8 +177,8 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
 6. **E:**
    - Static tests: ports, flow and checks.
    - Harness: the default variant delivers at least 98% of 240/s, both lanes about 120/s, and nothing blocked. *Done 2026-10-12: 99.9%, lanes 120/120, the circuit plant blocked 1.8% (`tests/test_circuit_block.py`).*
-7. **F:**
+7. **F:** *Done 2026-10-12 (see Progress).*
    - `blueprint-smith optimise` on the green-circuit request returns a passing blueprint.
    - It rejects a variant the harness fails, such as too few output inserters.
    - It picks the smallest passing footprint.
-8. **Human:** the user imports the chosen blueprint in-game and confirms 240/s (the brief's spot-check).
+8. **Human:** the user imports the chosen blueprint in-game and confirms 240/s (the brief's spot-check). *Done 2026-10-12: "It worked well".*

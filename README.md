@@ -4,7 +4,7 @@ Generates importable Factorio 2.0 + Space Age blueprint strings from JSON specs.
 
 ## Current Status
 
-Three generators work in-game: `smelting_column` (all 3 samples confirmed), `steel_column` (1 of 3) and `circuit_block` (240 green circuits/s on a stacked turbo belt, confirmed). The headless harness agrees with every in-game result except one old layout. Milestone 2 has its solver, checks, measured inserter rates and generator built; the optimiser is next. See `docs/m2-plan.md`, `project-state.md` for detail and `session-summary.md` for history.
+Three generators work in-game: `smelting_column` (all 3 samples confirmed), `steel_column` (1 of 3) and `circuit_block` (240 green circuits/s on a stacked turbo belt, confirmed). The headless harness agrees with every in-game result except one old layout. Milestone 2 has its solver, checks, measured inserter rates, generator and optimiser built: `blueprint-smith optimise` turns "240 green circuits/s" into an 11×11 block that passes the harness, waiting on an in-game spot-check. See `docs/m2-plan.md`, `project-state.md` for detail and `session-summary.md` for history.
 
 ## Features
 
@@ -12,7 +12,7 @@ Three generators work in-game: `smelting_column` (all 3 samples confirmed), `ste
 - Generators:
   - `smelting_column`: electric furnaces with lane balancing, so both output lanes fill
   - `steel_column`: ore to steel, with iron furnaces feeding steel furnaces by direct insertion
-  - `circuit_block`: green circuits from legendary electromagnetic plants. A cable plant feeds a circuit plant by direct insertion under shared beacons, filling both lanes of a stacked turbo belt (240/s).
+  - `circuit_block`: green circuits from legendary electromagnetic plants. A cable plant feeds a circuit plant by direct insertion under shared beacons, filling both lanes of a stacked turbo belt (240/s). Copper comes in from the west (13×11) or the north (11×11).
 - Solver (`effects.py`): quality, modules, beacons, research, power and demand, matching Factorio 2.0.77's rounding
 - Every draftsman warning (overlap, unknown entity) fails the build
 - Static checks:
@@ -21,12 +21,13 @@ Three generators work in-game: `smelting_column` (all 3 samples confirmed), `ste
   - module limits, beacon reach, underground pairing, survival-buildable entities
   - declared input and output ports
   - per-layout flow direction
-- Headless evaluation (`evaluate`, `build --evaluate`, `--research all` for M2 blocks): pastes the blueprint into a Factorio 2.0.77 headless server, feeds it (stacked belts too) and powers it, and fails it if:
+- Headless evaluation (`evaluate`, `build --evaluate`; research defaults to what each blueprint type needs): pastes the blueprint into a Factorio 2.0.77 headless server, feeds it (stacked belts too) and powers it, and fails it if:
   - output is under 98% of target
   - a machine unloading onto a belt is blocked on output more than 5% of the time
   - any machine's output backs up
 
   Idle and unpowered time are reported as utilisation, not failed.
+- Optimiser (`optimise`): give it a request such as `{"item": "electronic-circuit", "rate": 240}`. It tries every layout variant that the solver says could work, and returns the smallest one that passes the headless harness, using estimated power to break ties.
 - Decode any blueprint string back to JSON
 
 ## Getting Started
@@ -77,7 +78,7 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
 
 v2 is a blueprint optimizer. You ask for something like "fill a turbo belt of green circuits", and it chooses machines, modules and beacons, lays out the block, and verifies it headlessly without an in-game test.
 - Milestone 1, the harness, is done.
-- Milestone 2: the solver, checks, measured primitives and green-circuit generator are done. The optimiser is next.
+- Milestone 2: the solver, checks, measured primitives, green-circuit generator and optimiser (`blueprint-smith optimise`) are built. Only the in-game spot-check of the optimiser's pick is left.
 - Learning from existing blueprints and freeform placement are stretch goals.
 - Logistics and power & fluids generators are paused.
 

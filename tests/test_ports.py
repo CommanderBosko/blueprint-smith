@@ -22,7 +22,8 @@ EXPECTED = {
     "steel_column.json": ("iron-ore", 15.0, "steel-plate", (10, 71), 3.0, "transport-belt"),
 }
 # examples with more than one input, whose exact ports their own tests check
-COVERED_ELSEWHERE = {"circuit_block.json": "tests/test_circuit_block.py"}
+COVERED_ELSEWHERE = {"circuit_block.json": "tests/test_circuit_block.py",
+                     "circuit_block_north.json": "tests/test_circuit_block.py"}
 SPECS = [
     *(json.loads(p.read_text()) for p in sorted(EXAMPLES.glob("*.json"))),
     *({"type": t, "count": n} for t in ("smelting_column", "steel_column") for n in (1, 2, 3)),

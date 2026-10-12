@@ -2,6 +2,15 @@
 
 ## Current Project State
 
+**2026-10-12 (later): M2 piece F, the optimiser, is built on branch `v2-m2-f`. `blueprint-smith optimise` turns "fill a turbo belt of green circuits" into an 11×11 blueprint that passes the harness, and it worked in the user's game. That completes M2's definition of done; merging F is what's left.**
+- **In-game spot-check (2026-10-12):** "It worked well." The user's screenshot shows both output lanes full, the north copper inserter feeding the cable plant, and the single iron inserter keeping up.
+- **The user's tweak, now in the generator (T5):** the stub inserters sit at the east end of the plant's top edge, and the stub starts under the first one. That's 3 belt tiles instead of 5. `check_flow` enforces it, with mutation tests.
+- **Scope (user):** the optimiser and a second layout, built together by two sub-agents in parallel.
+- **Second layout (user approved): `circuit_block` with `copper: "north"` (T6).** Copper comes down into the cable plant from beside the substation, which takes the block from 13×11 (143 tiles) to 11×11 (121). At 240/s the machines and beacons can't shrink, so input routing is the only footprint lever. Harness: 239.74/s crafted, lanes 120/120. West stays the default.
+- **Registry:** `register(..., variants=, research=)`. `circuit_block` declares `research="all"`, and `evaluate`/`build --evaluate` now default to it.
+- **`optimise.py`:** builds every variant, ranks by footprint then estimated power, and runs the harness best-first in parallel batches. The real run took 17 s and 8 harness runs, and chose north with iron 1, cable 3, east 2 and north 2 inserters: 240.01/s, lanes 120/120. It's saved in the session scratchpad and is handed over via `/ingame-test`.
+- **Tests:** 535 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 85 s).
+
 **2026-10-12: M2 pieces A–E are merged to `main`. The green circuit block makes 240/s in the harness and in-game. Only F, the optimiser, is left.**
 - **Merged** in order with merge commits: #2 (pieces A, C and D, plus dropping the unpowered bar), #3 (piece B), #4 (piece E and its in-game confirmation). Each PR's head passed the full suite first, and a code review of each found no blockers (follow-ups under Known Issues). The stack branches are deleted.
 - **Tests:** 432 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 70 s).
@@ -48,15 +57,20 @@
 
 ## Current Goals
 
-- **Next session:**
-  - **Decide F's scope first.** `circuit_block` is a single layout, so its footprint only changes with the beacon count (about 13×11). F can either tune that one layout's options, or a second layout comes first, so that "smallest passing footprint" has real alternatives.
-  - Then build F: `optimise.py` and a CLI `optimise` command. It enumerates variants, prefilters them with the solver, runs the survivors through the harness in parallel with `research="all"`, and returns the smallest passing footprint, with power breaking ties.
-- **M2 done:** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and the user spot-checks the chosen one in-game. The default block already passed in-game.
+- **Next:**
+  - Open and merge the `v2-m2-f` PR.
+  - Follow-up PR: exempt machine-only feeders from the output-growth check (user, 2026-10-12).
+- **M2 done (2026-10-12):** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and that pick worked in the user's game.
 - **Long term:** M3 (learning from existing blueprints) and M4 (freeform placement) are stretch goals. The logistics and power & fluids generators are paused.
 - **Still open from v1:** 2 more `steel_column` samples to reach the brief's 3 per type.
 
 ## Recent Decisions
 
+- **Machines that unload only into other machines will be exempt from the output-growth check too** (user, 2026-10-12). Under direct insertion, their buffer fills to a cap and then they wait, so growth can't jam anything. In every optimiser run it falsely failed 2 of 8 good variants. It ships as a follow-up PR after F.
+- **Stub inserters go at the output end of the plant's edge, and the stub starts under the first one** (user, 2026-10-12, an in-game tweak that saves 2 turbo belts). The generator and `check_flow` follow it (T5).
+- **F covers the optimiser and a second layout, built together** (user, 2026-10-12). The second layout is `copper: "north"`, approved from an ASCII preview over a vertically stacked alternative of the same size.
+- **Variants are solver-feasible without a margin, and the harness decides the borderline ones.** `variants` keeps a spec if its `sizing` bound reaches 98% of the rate, so 1 iron inserter (87.47/s for 87.27/s) is tried even though the static 98% margin warns about it. The harness passed it.
+- **Power ranks with a static estimate**, since the harness doesn't measure draw. Inserters count as an upper bound (drain plus both motions every tick, ×quality), and the estimate only breaks footprint ties.
 - **Power is never judged** (user, 2026-10-12: "power is not a problem in my save"). Unpowered time is reported only. Saved to memory (`feedback_power-not-judged.md`). The harness-power-not-linked failure stays, because it guards the measurement itself.
 - **A machine that unloads only into other machines isn't judged on blocking** (user, 2026-10-12). Under direct insertion, spare capacity shows as `full_output` instead of idle: the circuit block's cable plant read 55% blocked while the block delivered 240/s. A machine unloading onto a belt is still held to 5%.
 - **`circuit_block` layout** (user approved, 2026-10-12): one cable plant and one circuit plant with 2 shared beacons. The second output lane comes from a side-load stub (T5), not T1's splitter, because a 4×4 plant has no rows to spare. Copper comes in stacked like iron (user).
@@ -83,9 +97,11 @@
 
 ## Known Issues / Tech Debt
 
-- **`circuit_block` needs `--research all` passed by hand** (its build notes say so). F should pass it automatically, or the generator should declare it.
 - **Inserter rates are measured for legendary stack inserters only.** At another `quality`, `circuit_block`'s defaults and warnings use the legendary numbers, and only the harness knows.
-- **The machine→machine blocking exemption hides an under-sized hand-off** (from the PR #4 review; matters for F). With `cable_inserters: 1` the verdict fails only on the output rate and no longer names the cable plant or its link, so F can't tell which link to grow from the verdict alone. Exempt machines are also still judged on output growth (`GROWTH_MAX`), which a short warmup could trip on an over-capacity plant.
+- **The machine→machine blocking exemption hides an under-sized hand-off** (from the PR #4 review). With `cable_inserters: 1` the verdict fails only on the output rate and no longer names the cable plant or its link. F doesn't need that, because variants are sized by the solver.
+- **Exempt machines are still judged on output growth (`GROWTH_MAX`), and it now trips.** In F's real run, 2 of 8 variants failed on the cable plant's output growing by 44 and 24 items. That plant feeds only machines and is over-capacity, and it hadn't filled its buffer by the time the window opened. These are false failures: they cost a few runs but didn't change the winner. **Decided (user, 2026-10-12): exempt them from growth too**, for the same reason as the blocking exemption. That's the next follow-up PR.
+- **The chosen 240/s block runs iron at 0.2% headroom:** 1 inserter carries 87.47/s against 87.27/s needed. It worked in-game on 2026-10-12. If it ever starves, the next-best variant (2 iron inserters) has the same footprint and draws 0.84 MW more.
+- **The optimiser ranks by footprint and power only, so it can't see belt counts.** The user's stub tweak saved 2 belts without changing either. The generator now builds the short stub itself, but a future layout choice that only saves materials would tie on the JSON tie-break.
 - **`circuit_block`'s `check_flow` doesn't check belt continuity:** a missing iron, stub or output belt tile passes statically and only the harness catches it.
 - **Smaller review follow-ups:** `tests/test_ports.py` lost its exact-port-count and default-belt assertions for the M1 generators; the verdict silently exempts non-working statuses other than idle (`no_recipe`, `invalid`); `_where` and the belt stack limit (4) are duplicated across modules.
 - **Untested:** whether empty or unpowered beacons count toward a machine's beacon number N (`effects.py` assumes they do), exact .5 ties in the 2.0 rounding, and mixed beacon types.
@@ -99,9 +115,6 @@
 
 ## Next Steps
 
-1. Decide F's scope: tune `circuit_block`'s options only, or add a second layout first.
-2. Build F (`optimise.py`, CLI `optimise`) per `docs/m2-plan.md`. It must:
-   - reject a variant the harness fails, such as too few output inserters;
-   - pick the smallest passing footprint;
-   - pass `research="all"` itself.
+1. Merge `v2-m2-f` (M2 done).
+2. Follow-up PR: exempt machines that unload only into other machines from the output-growth check (`GROWTH_MAX`), with a test. Decided by the user 2026-10-12.
 3. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).
