@@ -1,6 +1,8 @@
-"""Run a built blueprint in the headless harness and judge it (v2 milestone 1, amended P2).
+"""Run a built blueprint in the headless harness and judge it (v2, amended P2).
 
-The verdict is a hard pass/fail: output below 98% of target, or any machine working under 95% of the window, fails.
+The verdict is a hard pass/fail: output below 98% of target fails, and so does any machine blocked on output or
+unpowered for more than 5% of the window, or whose output backs up. A machine idle for want of ingredients only
+shows in the reported utilisation (harness/verdict.py).
 """
 import math
 from dataclasses import dataclass

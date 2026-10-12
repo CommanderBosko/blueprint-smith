@@ -12,6 +12,7 @@ local STATUS = {}
 for k, v in pairs(defines.entity_status) do STATUS[v] = k end
 local HARNESS_POLE = "medium-electric-pole"
 local MARGIN = 32   -- tiles of map around the blueprint for big entities, loaders, chests and power
+local MAX_STACK = 4 -- items per belt slot (utility constant max_belt_stack_size)
 
 local function fail(msg) table.insert(storage.build.errors, msg) end
 local function log_(msg) table.insert(storage.log, msg) end
@@ -36,23 +37,27 @@ local function write_result()
   local W, N = job.warmup_ticks, job.window_ticks
   local outputs = {}
   for _, o in ipairs(storage.outputs) do
-    local produced = 0
-    for _, m in ipairs(storage.machine_info) do produced = produced + (m.crafts or 0) * product_amount(m.recipe, o.item) end
+    local produced, makers = 0, 0                -- no machine making the item (a bare belt): leave it unreported
+    for _, m in ipairs(storage.machine_info) do
+      local a = product_amount(m.recipe, o.item)
+      if a > 0 then produced, makers = produced + (m.crafts or 0) * a, makers + 1 end
+    end
     table.insert(outputs, {item = o.item, target = o.target, count = o.count, rate = o.count * 60 / N,
-      produced_rate = produced * 60 / N,
+      produced_rate = makers > 0 and produced * 60 / N or nil,
       lane_rates = {o.lanes[1] * 60 / N, o.lanes[2] * 60 / N}, other_items = o.other})
   end
   local machines = {}
   for i, m in ipairs(storage.machine_info) do
     local tl = storage.tally[i]
-    table.insert(machines, {name = m.name, position = m.position, recipe = m.recipe, crafts = m.crafts or 0,
-      output_growth = m.output_growth or 0,
-      working = ((tl.working or 0) + (tl.normal or 0)) / N, statuses = tl})
+    table.insert(machines, {name = m.name, quality = m.quality, position = m.position, recipe = m.recipe,
+      crafts = m.crafts or 0, output_growth = m.output_growth or 0, crafting_speed = m.crafting_speed,
+      productivity = m.productivity, working = ((tl.working or 0) + (tl.normal or 0)) / N, statuses = tl})
   end
   storage.power.unpowered_machine_ticks = storage.unpowered
   local json = helpers.table_to_json({
     version = 1, build = storage.build, ticks = {warmup = W, window = N}, outputs = outputs,
-    machines = machines, power = storage.power, series = storage.series, log = storage.log,
+    machines = machines, power = storage.power, research = storage.research, series = storage.series,
+    log = storage.log,
   })
   -- table_to_json writes an empty table as {}; these keys always hold lists.
   for _, k in ipairs(LIST_KEYS) do json = json:gsub('"' .. k .. '":{}', '"' .. k .. '":[]') end
@@ -74,6 +79,10 @@ local function check_job()
     if p.role ~= "input" and p.role ~= "output" then fail(string.format("port %d: bad role %s", i, tostring(p.role))) end
     if not DV[p.direction] then fail(string.format("port %d: bad direction %s", i, tostring(p.direction))) end
     if not LOADER[p.belt] then fail(string.format("port %d: no loader for belt %s", i, tostring(p.belt))) end
+    local s = p.stack
+    if s ~= nil and not (type(s) == "number" and s % 1 == 0 and s >= 1 and s <= MAX_STACK) then
+      fail(string.format("port %d: stack must be an integer from 1 to %d, got %s", i, MAX_STACK, tostring(s)))
+    end
     if not prototypes.item[p.item] then fail(string.format("port %d: unknown item %s", i, tostring(p.item))) end
   end
 end
@@ -179,6 +188,10 @@ local function place_port(surface, force, i, p)
     return fail(string.format("%s: belt is %s, port says %s", where, belt.name, p.belt))
   end
   local feed = p.role == "input"
+  if feed and (p.stack or 1) > 1 then            -- loaders can't output stacks: tick() inserts them at the back
+    table.insert(storage.feeds, {belt = belt, item = {name = p.item, count = p.stack}, stack = p.stack})
+    return
+  end
   local sign = feed and -1 or 1                  -- feed: upstream of the port; sink: downstream
   local chest_name, loader_name = feed and "infinity-chest" or "steel-chest", LOADER[p.belt]
   local chest_pos = {cx + sign * 3 * d[1], cy + sign * 3 * d[2]}
@@ -214,7 +227,11 @@ local function place_power(surface, force)
   storage.power = power
   local box = storage.box
   local poles = surface.find_entities_filtered{area = box, type = "electric-pole"}
-  if #poles == 0 then log_("no electric pole in the blueprint; harness power not connected") return end
+  if #poles == 0 then                            -- nothing to link; a machine left unpowered shows as no_power
+    power.harness_linked = nil
+    log_("no electric pole in the blueprint; harness power not connected")
+    return
+  end
   local proto = prototypes.entity[HARNESS_POLE]
   local gap = math.ceil(proto.get_supply_area_distance()) + 1
   local x0, y0, x1, y1 = box[1][1], box[1][2], box[2][1], box[2][2]
@@ -262,6 +279,9 @@ local function setup()
   -- "none" matches ratios.py's base stats; script-built entities don't need research to exist.
   if job.research == "all" then force.research_all_technologies() else force.enable_all_recipes() end
   for name in pairs(prototypes.quality) do pcall(force.unlock_quality, name) end
+  storage.research = {state = job.research or "none", belt_stack_size_bonus = force.belt_stack_size_bonus,
+    bulk_inserter_capacity_bonus = force.bulk_inserter_capacity_bonus,
+    inserter_stack_size_bonus = force.inserter_stack_size_bonus}
   local surface = build(force)
   if failed() then return end
   for i, p in ipairs(job.ports or {}) do place_port(surface, force, i, p) end
@@ -274,7 +294,8 @@ local function setup()
     return a.position.x < b.position.x
   end)
   for i, m in ipairs(storage.machines) do         -- positions in the port frame (relative to the origin)
-    storage.machine_info[i] = {name = m.name, position = {m.position.x - storage.origin[1], m.position.y - storage.origin[2]}}
+    storage.machine_info[i] = {name = m.name, quality = m.quality.name,
+      position = {m.position.x - storage.origin[1], m.position.y - storage.origin[2]}}
     storage.tally[i] = {}
   end
 end
@@ -284,6 +305,7 @@ script.on_init(function()
   storage.build = {ghosts_left = 0, proxies_left = 0, errors = {}}
   storage.origin = {0, 0}
   storage.outputs, storage.machines, storage.machine_info, storage.tally, storage.series = {}, {}, {}, {}, {}
+  storage.feeds = {}
   storage.power = {harness_linked = false, other_networks = 0}
   storage.bucket, storage.unpowered = 0, 0
   local ok, err = pcall(setup)
@@ -324,8 +346,12 @@ local function tick(t)
       elseif m.valid then
         info.crafts, info.recipe = crafts_done(m) - (info.crafts_start or 0), recipe_of(m)
         info.output_growth = held(m) - (info.held_start or 0)
+        info.crafting_speed, info.productivity = m.crafting_speed, m.productivity_bonus
       end
     end
+  end
+  for _, f in ipairs(storage.feeds) do           -- one stack per lane per tick keeps up with any belt tier
+    for lane = 1, 2 do f.belt.get_transport_line(lane).insert_at_back(f.item, f.stack) end
   end
   for i, o in ipairs(storage.outputs) do
     local n, all = 0, 0                          -- n: the port's item, any quality

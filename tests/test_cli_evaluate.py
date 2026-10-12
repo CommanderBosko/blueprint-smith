@@ -54,7 +54,8 @@ def test_evaluate_bad_spec_exits_2(tmp_path):
 
 @pytest.mark.harness
 def test_overloaded_column_fails_in_the_real_harness(tmp_path, capsys):
-    """30 furnaces want 18.75 ore/s, but a yellow belt carries 15/s: the bottom 6 starve."""
+    """30 furnaces want 18.75 ore/s, but a yellow belt carries 15/s: the bottom 6 starve. The output bar fails it;
+    starved furnaces are idle, not blocked, so they show in the utilisation instead of failing (the M2 bar)."""
     try:
         harness.find_server()
     except harness.HarnessUnavailable as e:
@@ -62,4 +63,8 @@ def test_overloaded_column_fails_in_the_real_harness(tmp_path, capsys):
     assert cli.main(["evaluate", _spec(tmp_path, {"type": "smelting_column", "count": 30})]) == 1
     out, err = capsys.readouterr()
     assert "iron-plate: 15.00/s of 18.75/s (80.0%)" in out
-    assert err.count("mostly no_ingredients") == 6
+    assert err.split("failed the harness verdict:\n")[1].splitlines() == [
+        "  - output iron-plate: 15.00/s is 80.0% of the 18.75/s target (needs >= 98%)"]
+    # the starved 6 never got ore, so they never picked a recipe
+    assert "utilisation electric-furnace (iron-plate) x24: working min 100.0%" in out
+    assert "utilisation electric-furnace x6: working min 0.0%" in out

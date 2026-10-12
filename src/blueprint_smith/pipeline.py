@@ -30,9 +30,9 @@ def origin(bp: Blueprint) -> tuple[int, int]:
 
 
 def check_ports(bp: Blueprint, ports: list[Port]) -> list[str]:
-    """Every port (tile relative to `origin(bp)`) sits on a belt of its declared name, flowing its way, at the
-    belt's open end: the tile before an input and the tile after an output must be free, since that's where
-    the belt gets fed or drained."""
+    """Every port (tile relative to `origin(bp)`, stack 1-4) sits on a belt of its declared name, flowing its
+    way, at the belt's open end: the tile before an input and the tile after an output must be free, since that's
+    where the belt gets fed or drained."""
     ox, oy = origin(bp)
     problems = []
     for p in ports:
@@ -44,6 +44,8 @@ def check_ports(bp: Blueprint, ports: list[Port]) -> list[str]:
         if p.direction not in STEP:
             problems.append(f"{where}: direction must be N=0, E=4, S=8 or W=12, got {p.direction!r}")
             continue
+        if isinstance(p.stack, bool) or not isinstance(p.stack, int) or not 1 <= p.stack <= 4:
+            problems.append(f"{where}: stack must be an integer from 1 to 4 (items per belt slot), got {p.stack!r}")
         here = bp.find_entities_filtered(position=(x + 0.5, y + 0.5))
         belt = next((e for e in here if e.name == p.belt), None)
         if belt is None:
