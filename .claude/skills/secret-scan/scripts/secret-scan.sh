@@ -94,9 +94,13 @@ else
     [ -z "$desc_pat" ] && continue
     desc=${desc_pat%%::*}; pat=${desc_pat#*::}
     # shellcheck disable=SC2086
-    out=$(git grep -lIE -e "$pat" $allrev -- "${EXCLUDE[@]}" 2>/dev/null | head -20)
+    out=$(git grep -lIE -e "$pat" $allrev -- "${EXCLUDE[@]}" 2>/dev/null)
     if [ -n "$out" ]; then
-      hit "$desc found in history (commit:path):"; echo "$out" | sed 's/^/      /'; histhit=1
+      n=$(printf '%s\n' "$out" | wc -l)
+      hit "$desc found in history (commit:path):"
+      printf '%s\n' "$out" | head -20 | sed 's/^/      /'
+      [ "$n" -gt 20 ] && echo "      ... (truncated at 20 of $n hits)"
+      histhit=1
     fi
   done
   [ "$histhit" -eq 0 ] && echo "  clean"
@@ -108,7 +112,7 @@ if [ "${#GITIGNORE_PATTERNS[@]}" -eq 0 ]; then
   echo "  skip — no patterns configured"
 else
   for p in "${GITIGNORE_PATTERNS[@]}"; do
-    if grep -qF "$p" .gitignore 2>/dev/null; then echo "  ok   ignores $p"; else echo "  note missing $p in .gitignore"; fi
+    if grep -qxF "$p" .gitignore 2>/dev/null; then echo "  ok   ignores $p"; else echo "  note missing $p in .gitignore"; fi
   done
 fi
 
