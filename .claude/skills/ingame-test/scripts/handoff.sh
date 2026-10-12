@@ -5,7 +5,8 @@
 #   SPEC       spec JSON path (absolute, or relative to the caller's cwd)
 #   OUTDIR     where <spec-stem>.txt (the string) and <spec-stem>.log (notes) go:
 #              the session scratchpad, never $TMPDIR (unset here)
-#   none|all   harness research state (default none; all for M2 blocks such as circuit_block)
+#   none|all   harness research state (default: the one the spec's type registers, e.g. all for
+#              circuit_block, none for the furnace columns); pass it only to override that
 #
 # Prints HARNESS:, BLUEPRINT:, ENTITIES:, FILE: and CLIPBOARD: lines on stdout, plus the
 # build notes and harness verdict on stderr. It never prints the blueprint string itself.
@@ -16,8 +17,10 @@ set -uo pipefail
 usage() { echo "usage: handoff.sh SPEC OUTDIR [none|all]" >&2; exit 64; }
 [ $# -ge 2 ] && [ $# -le 3 ] || usage
 [ -n "$1" ] && [ -n "$2" ] || usage   # an empty OUTDIR is the unset-$TMPDIR slip
-research="${3:-none}"
-case "$research" in none|all) ;; *) usage ;; esac
+research="${3:-}"
+case "$research" in ""|none|all) ;; *) usage ;; esac
+research_args=()
+[ -n "$research" ] && research_args=(--research "$research")
 
 spec="$(realpath -- "$1")" || exit 2
 mkdir -p -- "$2" || exit 64
@@ -31,12 +34,12 @@ bps=.venv/bin/blueprint-smith
 
 rm -f -- "$out"   # never hand off a stale string from an earlier run
 
-"$bps" build "$spec" --evaluate --research "$research" -o "$out" 2>"$log"
+"$bps" build "$spec" --evaluate "${research_args[@]}" -o "$out" 2>"$log"
 code=$?
 cat -- "$log" >&2
 case $code in
   0)
-    echo "HARNESS: passed (research $research)"
+    echo "HARNESS: passed (research ${research:-as the type registers})"
     ;;
   3)
     echo "HARNESS: skipped (the harness couldn't run); fell back to a static build"
@@ -49,9 +52,6 @@ case $code in
     ;;
   *)
     echo "BUILD: failed (exit $code: 1 = failed validation or the harness verdict, 2 = bad spec); not handing off"
-    if [ "$research" = none ] && grep -q -- '--research all' "$log"; then
-      echo "HINT: the build notes ask for --research all; re-run with 'all'"
-    fi
     rm -f -- "$out"
     exit "$code"
     ;;

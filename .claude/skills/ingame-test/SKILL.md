@@ -18,9 +18,9 @@ Run from the project root. Choose the phase from what the user said. "Test this 
 
 ### Phase A: hand off
 
-1. **Build, decode and copy:** `scripts/handoff.sh SPEC <scratchpad> [none|all]`. `<scratchpad>` is this session's scratchpad directory from the system prompt, never `$TMPDIR`. Pass `all` for M2 blocks such as `circuit_block`, whose build notes say "evaluate with --research all", and omit it otherwise. The script runs `build SPEC --evaluate -o <scratchpad>/<spec-stem>.txt`, then `decode @FILE` (printing only a summary), then `wl-copy < FILE`. Branch on its exit code:
+1. **Build, decode and copy:** `scripts/handoff.sh SPEC <scratchpad> [none|all]`. `<scratchpad>` is this session's scratchpad directory from the system prompt, never `$TMPDIR`. Omit the research argument: the CLI uses the research each spec type registers (`circuit_block`: all, the furnace columns: none). Pass `none` or `all` only to override it. The script runs `build SPEC --evaluate -o <scratchpad>/<spec-stem>.txt`, then `decode @FILE` (printing only a summary), then `wl-copy < FILE`. Branch on its exit code:
    - **0:** done. If the `HARNESS:` line says skipped (the build exited 3), the script fell back to a plain `build SPEC -o FILE`, so tell the user the harness verdict was skipped.
-   - **1 or 2:** failed validation or the harness verdict (1), or a bad spec (2). Stop and report the failure lines from stderr. Don't hand off a failing blueprint. If it printed a `HINT:` about `--research all`, re-run once with `all` before reporting.
+   - **1 or 2:** failed validation or the harness verdict (1), or a bad spec (2). Stop and report the failure lines from stderr. Don't hand off a failing blueprint.
    - **4:** built and decoded, but the clipboard copy failed. Give the user `! wl-copy < FILE` to run.
    - **5:** the string didn't decode. Stop and report it as a pipeline bug.
 
