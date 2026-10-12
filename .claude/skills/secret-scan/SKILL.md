@@ -22,23 +22,23 @@ None.
   in the tree is a leak by definition. `.env` is gitignored as a safety net.
 - **Encrypted/managed secret locations:** none. There is no sops, git-crypt or vault
   setup, so the encrypted-secret integrity pass is skipped.
-- **Paths excluded from pattern matching:** only `.claude/skills/` (this skill's own docs
-  and script contain example secret patterns). Everything else is scanned, including
-  blueprint strings.
+- **Paths excluded from pattern matching:** set by `EXCLUDE` in `scripts/secret-scan.sh`,
+  which keeps out this skill's own directory (its docs and script contain example secret
+  patterns). Everything else is scanned, including blueprint strings.
 - **Known intentional non-secrets (don't flag these):** Factorio blueprint strings, which
   are long base64 (zlib) runs starting with `0e`. They appear in `examples/`,
   `tests/fixtures/harness/`, `spike/harness/*.bp` and sometimes in docs. They are public
   game data, not credentials. If one ever matches a pattern by chance, confirm it's
   inside a blueprint string and treat it as a false positive.
-- **Full git-history scan:** yes. The repo is small (7 commits, about 1.3 MB of `.git` as
-  of 2026-10-11) and public, so every commit is scanned.
+- **Full git-history scan:** yes (`SCAN_HISTORY` in the script). The repo is small and
+  public, so every commit is scanned; the script prints the commit count when it runs.
 
 ## Instructions
 
 1. Run `scripts/secret-scan.sh`. It performs four passes:
-   - **Working tree** — high-signal patterns (private-key blocks, password hashes,
-     GitHub/AWS/Slack tokens, plus Discord webhook URLs, Anthropic API keys and Factorio
-     service tokens) across tracked files, excluding the configured paths.
+   - **Working tree** — high-signal patterns (the generic `BASE_PATTERNS` plus this
+     project's `EXTRA_PATTERNS`, both defined at the top of `scripts/secret-scan.sh`, the
+     single source of truth) across tracked files, excluding the `EXCLUDE` paths.
    - **Encrypted-secret integrity** — skipped: this project has no encrypted-secret
      scheme, so the script prints a skip line here. That is expected, not a failure.
    - **Git history** — the same high-signal patterns across *all commits* (catches
