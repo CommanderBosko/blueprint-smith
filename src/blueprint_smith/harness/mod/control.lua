@@ -13,6 +13,8 @@ for k, v in pairs(defines.entity_status) do STATUS[v] = k end
 local HARNESS_POLE = "medium-electric-pole"
 local MARGIN = 32   -- tiles of map around the blueprint for big entities, loaders, chests and power
 local MAX_STACK = 4 -- items per belt slot (utility constant max_belt_stack_size)
+local BELT_TYPES = {["transport-belt"] = true, ["underground-belt"] = true, ["splitter"] = true,
+  ["lane-splitter"] = true, ["loader"] = true, ["loader-1x1"] = true, ["linked-belt"] = true}
 
 local function fail(msg) table.insert(storage.build.errors, msg) end
 local function log_(msg) table.insert(storage.log, msg) end
@@ -51,6 +53,7 @@ local function write_result()
     local tl = storage.tally[i]
     table.insert(machines, {name = m.name, quality = m.quality, position = m.position, recipe = m.recipe,
       crafts = m.crafts or 0, output_growth = m.output_growth or 0, crafting_speed = m.crafting_speed,
+      unloads = m.unloads,
       productivity = m.productivity, working = ((tl.working or 0) + (tl.normal or 0)) / N, statuses = tl})
   end
   local inserters = {}
@@ -331,6 +334,29 @@ local function setup()
   end
 end
 
+-- Where each machine unloads, read once the inserters have run (their targets aren't set before). A machine that
+-- feeds only other machines (direct insertion) is paced by its consumer, so the verdict doesn't judge its blocking.
+local function record_unloads()
+  local index = {}
+  for i, m in ipairs(storage.machines) do
+    if m.valid then index[m.unit_number] = i end
+    storage.machine_info[i].unloads = {}
+  end
+  for _, e in ipairs(storage.inserters) do
+    local from, to = e.valid and e.pickup_target, e.valid and e.drop_target
+    local i = from and index[from.unit_number]
+    if i then
+      local kind = "nothing"
+      if to then
+        kind = (to.type == "assembling-machine" or to.type == "furnace") and "machine" or BELT_TYPES[to.type] and "belt"
+          or "other"
+      end
+      local u = storage.machine_info[i].unloads
+      u[kind] = (u[kind] or 0) + 1
+    end
+  end
+end
+
 script.on_init(function()
   storage.log = {}
   storage.build = {ghosts_left = 0, proxies_left = 0, errors = {}}
@@ -380,6 +406,7 @@ local function tick(t)
         info.crafting_speed, info.productivity = m.crafting_speed, m.productivity_bonus
       end
     end
+    if t == W + N - 1 then record_unloads() end
   end
   for _, f in ipairs(storage.feeds) do           -- one stack per lane per tick keeps up with any belt tier
     for lane = 1, 2 do f.belt.get_transport_line(lane).insert_at_back(f.item, f.stack) end

@@ -62,6 +62,8 @@ class MachineMeasure:
     quality: str | None = None  # entity quality; None: not reported
     crafting_speed: float | None = None  # at the end of the window, with modules, beacons and quality
     productivity: float | None = None  # productivity bonus at the end of the window (modules and research)
+    # inserters unloading it, by where they drop: "machine", "belt", "other", "nothing"; empty: not reported
+    unloads: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -399,7 +401,8 @@ def _parse(data, ports, warmup_ticks, window_ticks, wall, run_dir) -> HarnessRes
             statuses={str(k): int(v) for k, v in _dict(m.get("statuses")).items()},
             recipe=m.get("recipe"), crafts=float(m.get("crafts", 0.0)), output_growth=int(m.get("output_growth", 0)),
             quality=m.get("quality"), crafting_speed=_float(m.get("crafting_speed")),
-            productivity=_float(m.get("productivity"))))
+            productivity=_float(m.get("productivity")),
+            unloads={str(k): int(v) for k, v in _dict(m.get("unloads")).items()}))
 
     inserters = []
     for i in _list(data.get("inserters")):

@@ -15,7 +15,7 @@ Status labels:
 Run through this when designing a new generator or changing an old one. It's how the entries below get combined.
 
 1. **Size from the whole belt (P1).** Target rates use full-belt capacity (2 lanes, F11), not one lane. A column should be able to eat a full input belt.
-2. **Every belt that inserters unload onto from one side needs lane balancing (T1) if its output can exceed one lane.** Otherwise only the far lane fills (F1). Skip T1 when the output can never fill one lane (the steel column's output is a fifth of its input).
+2. **Every belt that inserters unload onto from one side needs lane balancing (T1) if its output can exceed one lane.** Otherwise only the far lane fills (F1). Skip T1 when the output can never fill one lane (the steel column's output is a fifth of its input). When one machine's edges are all there is to unload from, as in the circuit block, use a side-load stub instead (T5).
 3. **Input belts need nothing extra.** Inserters take from both lanes (F2).
 4. **Leave rows for poles (T2, T3).** The pipeline wires them (F6), and `pole_network` fails any pole it misses. Supply reach is measured from the pole's centre (F10), so a medium pole covers 3 tiles either side of its own column.
 5. **Use facing-relative left/right for splitter priority (F5).** Never assume screen left.
@@ -38,7 +38,7 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
   - any machine's output backs up (more than 3 items gained);
   - or less than 80% of the crafted output reaches the output port.
 
-  Idle time isn't failed: beacons come in whole steps, so an honest design runs some machines under capacity. Each machine kind's utilisation (min and mean share working) is reported instead, and the output bar catches a starved line. Unpowered time isn't judged either, only reported: power is never short in the user's save (user, 2026-10-12). *The M2 machine bar was decided by the user and implemented 2026-10-11. It replaced "every machine working at least 95%".*
+  Idle time isn't failed: beacons come in whole steps, so an honest design runs some machines under capacity. Each machine kind's utilisation (min and mean share working) is reported instead, and the output bar catches a starved line. Unpowered time isn't judged either, only reported: power is never short in the user's save (user, 2026-10-12). A machine that unloads **only into other machines** isn't judged on blocking: under direct insertion its consumer sets the pace, so spare capacity shows as `full_output` instead of idle (user, 2026-10-12, after the circuit block's cable plant read 55% blocked while the block delivered 240/s). *The M2 machine bar was decided by the user and implemented 2026-10-11. It replaced "every machine working at least 95%".*
 
 ## Game mechanics
 
@@ -152,6 +152,30 @@ col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)
 **Code:** `generators/steel_column.py`.
 **Enforced by:** `check_flow` (inserters move ore -> iron -> steel -> belt; every iron furnace has a steel partner; every furnace is loaded and unloaded; both belts flow south). Tests: `test_broken_layout_is_rejected` in `tests/test_steel_column.py`.
 
+### T5. Side-load stub for the second lane
+**Solves:** filling both lanes of an output belt from a single machine. Its inserters all sit on one side of the belt, so they fill only the far lane (F1), and a 4×4 machine has no spare rows for T1's splitter.
+
+**Layout** (the circuit block; the output belt flows south down x=5):
+
+```
+     x  0  1  2  3  4  5
+y -3    .  .  .  .  .  v      the output belt starts above the stub, so (5,-2) is straight
+y -2    >  >  >  >  >  v      stub: flows east into the output belt's side
+y -1    ^  ^  .  .  .  v      2 inserters fill the stub
+y  0    C  C  C  C  >  v      2 inserters fill the east (far) lane
+y  1    C  C  C  C  >  v
+```
+
+**Why it works:** side-loading puts everything onto the receiving belt's near lane (F3), which is the west lane here, and the east inserters fill the far lane. Each lane gets 2 inserters: 80/s plus the remaining 40/s reaches the 120/s stacked cap (F28).
+
+**Gotchas:**
+- **The output belt must run straight past the side-load tile.** Without the belt above it, the stub turns into the output belt instead of side-loading, and keeps its lane, which is the east one. `check_flow` requires that belt.
+- The machine is over-capacity against a full belt (250/s against 240/s), so it's blocked on output a few percent of the time (1.8% measured), under the 5% bar.
+
+**Status:** headless 2.0.77, 2026-10-12: lanes 120.00/120.00 from the default circuit block. With 1 stub inserter, the lanes read 120/80. Layout approved by the user 2026-10-12; not yet seen in-game.
+
+**Code:** `generators/circuit_block.py`. **Enforced by:** its `check_flow` (a stub inserter, straight output belt past the stub, belt directions). Tests: `test_broken_layout_is_rejected` and `test_one_stub_inserter_fails_on_the_west_lane` in `tests/test_circuit_block.py`.
+
 ### H1. Headless evaluation harness
 **Solves:** trusting a blueprint without the user importing it (v2 milestone 1, `PROJECT_BRIEF.md`).
 
@@ -168,6 +192,7 @@ col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)
   - Crafted rate: each machine's finished crafts plus progress, so crafts finishing in step don't alias.
   - Delivered rate and per-lane rate.
   - Each machine's status share and output-buffer growth (F15).
+  - Where each machine unloads (into machines, onto belts, elsewhere), read from its inserters' targets at the end of the window.
   - Power.
 
 **Status:**

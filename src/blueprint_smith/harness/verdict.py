@@ -3,8 +3,10 @@ output, and the harness power reached the blueprint. Thresholds are inclusive.
 
 Idle time ("no ingredients") doesn't fail a machine: beacons come in whole steps, so an honest design runs some
 machines under capacity. The output bar catches a starved line, and each machine's share working is reported as
-utilisation instead of judged (docs/m2-plan.md, "Decided: the machine bar"). Unpowered time isn't judged either:
-power is never short in the user's save, so it's only reported."""
+utilisation instead of judged (docs/m2-plan.md, "Decided: the machine bar"). For the same reason a machine that
+unloads only into other machines isn't judged on blocking: under direct insertion its consumer sets the pace, so
+spare capacity shows as blocked rather than idle. Unpowered time isn't judged either: power is never short in the
+user's save, so it's only reported."""
 from dataclasses import dataclass
 
 from .runner import HarnessResult, MachineMeasure, OutputMeasure
@@ -61,6 +63,11 @@ def share(m: MachineMeasure, statuses: tuple[str, ...], window: int) -> float:
     return sum(m.statuses.get(s, 0) for s in statuses) / total if total > 0 else 0.0
 
 
+def feeds_only_machines(m: MachineMeasure) -> bool:
+    """Every inserter unloading `m` drops into another machine (user, 2026-10-12: not judged on blocking)."""
+    return bool(m.unloads) and set(m.unloads) == {"machine"}
+
+
 def _most(m: MachineMeasure, statuses: tuple[str, ...]) -> str:
     return max(statuses, key=lambda s: m.statuses.get(s, 0))
 
@@ -109,7 +116,7 @@ def judge(result: HarnessResult, *, rate_min: float = 0.98, blocked_max: float =
             problems.append(f"{_where(m)}: output backing up, {m.output_growth} more items waiting in it than when "
                             f"the window opened")
         x = share(m, BLOCKED, window)
-        if x > blocked_max + EPS:
+        if x > blocked_max + EPS and not feeds_only_machines(m):
             problems.append(f"{_where(m)}: blocked on output {x:.1%} of the window (needs <= {_pct(blocked_max)}), "
                             f"mostly {_most(m, BLOCKED)}")
 
@@ -141,10 +148,15 @@ def _summary(r: HarnessResult) -> list[str]:
                      f"lanes {lanes}")
     if r.machines:
         window = r.ticks.get("window", 0)
-        worst = max(r.machines, key=lambda m: share(m, BLOCKED, window))
-        x = share(worst, BLOCKED, window)
-        lines.append(f"machines: {len(r.machines)}, "
-                     + (f"most blocked on output {x:.1%} ({_where(worst)})" if x > 0 else "none blocked on output"))
+        judged = [m for m in r.machines if not feeds_only_machines(m)]
+        worst = max(judged, key=lambda m: share(m, BLOCKED, window), default=None)
+        x = share(worst, BLOCKED, window) if worst else 0.0
+        line = f"machines: {len(r.machines)}, " + (f"most blocked on output {x:.1%} ({_where(worst)})" if x > 0
+                                                    else "none blocked on output")
+        fed = [share(m, BLOCKED, window) for m in r.machines if feeds_only_machines(m)]
+        if fed:
+            line += f"; {len(fed)} feeding only machines, blocked up to {max(fed):.1%}, not judged on it"
+        lines.append(line)
         lines += [_utilisation_line(u) for u in utilisation(r.machines)]
     else:
         lines.append("machines: none measured")

@@ -45,4 +45,4 @@ def get(name: str) -> Generator:
         raise SpecError(f"unknown blueprint type {name!r}; available: {sorted(REGISTRY)}") from None
 
 
-from . import smelting_column, steel_column  # noqa: E402,F401  (register themselves)
+from . import circuit_block, smelting_column, steel_column  # noqa: E402,F401  (register themselves)
