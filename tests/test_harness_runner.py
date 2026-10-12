@@ -10,9 +10,9 @@ import pytest
 from blueprint_smith import harness
 from blueprint_smith.generators import Port
 from blueprint_smith.harness import runner, server
-from blueprint_smith.harness.runner import (BuildStatus, HarnessError, HarnessResult, MachineMeasure, OutputMeasure,
-                                            PowerMeasure, config_ini, job_lua, lua_string, lua_value, mod_list,
-                                            parse_result, prepare)
+from blueprint_smith.harness.runner import (BuildStatus, HarnessError, HarnessResult, InserterMeasure,
+                                            MachineMeasure, OutputMeasure, PowerMeasure, Probe, config_ini, job_lua,
+                                            lua_string, lua_value, mod_list, parse_result, prepare)
 from blueprint_smith.harness.server import HarnessUnavailable, find_server
 from blueprint_smith.harness.verdict import judge, utilisation
 
@@ -133,7 +133,30 @@ def test_job_lua_carries_blueprint_ports_and_ticks():
         "  warmup_ticks = 7200,\n"
         "  window_ticks = 3600,\n"
         "  research = [[none]],\n"
+        "  probes = {},\n"
         "}\n")
+
+
+def test_job_lua_carries_probes():
+    probe = Probe((3, 4), ("iron-plate", "copper-cable"), drain=True)
+    job = job_lua("0e", [], warmup_ticks=1, window_ticks=1, probes=[probe, Probe((0, 0))])
+    assert ("  probes = {{tile = {3, 4}, feed = {[[iron-plate]], [[copper-cable]]}, drain = true}, "
+            "{tile = {0, 0}, feed = {}, drain = false}},\n") in job
+
+
+def test_a_probe_feeds_item_names():
+    with pytest.raises(ValueError, match="feed must be a sequence of item names"):
+        job_lua("0e", [], warmup_ticks=1, window_ticks=1, probes=[Probe((0, 0), "iron-plate")])
+
+
+def test_inserters_are_parsed_with_their_rate():
+    data = {"build": {}, "outputs": [], "machines": [], "ticks": {"warmup": 0, "window": 600},
+            "inserters": [{"name": "stack-inserter", "quality": "legendary", "position": {"x": 4.5, "y": 1.5},
+                           "moved": 640, "hand": 16, "statuses": {"working": 590, "waiting_for_source_items": 10}}]}
+    (i,) = parse_result(data).inserters
+    assert i == InserterMeasure("stack-inserter", (4.5, 1.5), 640, 64.0,
+                                {"working": 590, "waiting_for_source_items": 10}, "legendary", 16)
+    assert parse_result({"build": {}, "outputs": [], "machines": []}).inserters == []
 
 
 def test_job_lua_carries_the_port_stack():

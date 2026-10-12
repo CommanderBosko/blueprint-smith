@@ -404,3 +404,15 @@ def beacon_power(beacon) -> float:
     """Watts one beacon draws: energy_usage x QualityPrototype::beacon_power_usage_multiplier (legendary 1/6)."""
     b = _beacon(beacon)
     return _watts(entities.raw[b.name]["energy_usage"]) * qualities.raw[b.quality].get("beacon_power_usage_multiplier", 1)
+
+
+# --- inserters ---------------------------------------------------------------------------------------------
+# Items/s one legendary stack inserter moves with everything researched (hand 16, belt stack 4), measured on the
+# headless 2.0.77 server (F28; tests/test_harness_primitives.py holds these to the harness). The plan's wiki
+# figures had no belt-to-machine number for stacked belts. Onto a belt an inserter drops on the far lane only
+# (F1), and a stacked turbo lane carries 120/s, so a second inserter on the same lane adds only the 40/s left.
+LEGENDARY_STACK_INSERTER = {
+    "belt_to_machine": 87.47,  # from a full stacked turbo belt
+    "machine_to_machine": 120.0,
+    "machine_to_belt": 80.0,  # onto an empty stacked turbo lane
+}

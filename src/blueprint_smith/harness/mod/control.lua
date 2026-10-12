@@ -4,7 +4,7 @@
 local job = require("job")   -- generated per run by the Python runner
 
 local RESULT_FILE = "bps-result.json"
-local LIST_KEYS = {"errors", "outputs", "machines", "series", "log"}
+local LIST_KEYS = {"errors", "outputs", "machines", "inserters", "series", "log"}
 local DV = {[0] = {0, -1}, [4] = {1, 0}, [8] = {0, 1}, [12] = {-1, 0}}
 local LOADER = {["transport-belt"] = "loader", ["fast-transport-belt"] = "fast-loader",
   ["express-transport-belt"] = "express-loader", ["turbo-transport-belt"] = "turbo-loader"}
@@ -53,11 +53,16 @@ local function write_result()
       crafts = m.crafts or 0, output_growth = m.output_growth or 0, crafting_speed = m.crafting_speed,
       productivity = m.productivity, working = ((tl.working or 0) + (tl.normal or 0)) / N, statuses = tl})
   end
+  local inserters = {}
+  for _, info in ipairs(storage.inserter_info) do
+    table.insert(inserters, {name = info.name, quality = info.quality, position = info.position, moved = info.moved,
+      hand = info.hand, statuses = info.tally})
+  end
   storage.power.unpowered_machine_ticks = storage.unpowered
   local json = helpers.table_to_json({
     version = 1, build = storage.build, ticks = {warmup = W, window = N}, outputs = outputs,
-    machines = machines, power = storage.power, research = storage.research, series = storage.series,
-    log = storage.log,
+    machines = machines, inserters = inserters, power = storage.power, research = storage.research,
+    series = storage.series, log = storage.log,
   })
   -- table_to_json writes an empty table as {}; these keys always hold lists.
   for _, k in ipairs(LIST_KEYS) do json = json:gsub('"' .. k .. '":{}', '"' .. k .. '":[]') end
@@ -84,6 +89,14 @@ local function check_job()
       fail(string.format("port %d: stack must be an integer from 1 to %d, got %s", i, MAX_STACK, tostring(s)))
     end
     if not prototypes.item[p.item] then fail(string.format("port %d: unknown item %s", i, tostring(p.item))) end
+  end
+  for i, p in ipairs(job.probes or {}) do
+    if not (type(p.tile) == "table" and type(p.tile[1]) == "number" and type(p.tile[2]) == "number") then
+      fail(string.format("probe %d: tile must be {x, y}", i))
+    end
+    for _, item in ipairs(p.feed or {}) do
+      if not prototypes.item[item] then fail(string.format("probe %d: unknown item %s", i, tostring(item))) end
+    end
   end
 end
 
@@ -298,6 +311,24 @@ local function setup()
       position = {m.position.x - storage.origin[1], m.position.y - storage.origin[2]}}
     storage.tally[i] = {}
   end
+  -- Measurement blueprints only: script-feed or drain chosen machines so one link is the bottleneck.
+  for i, p in ipairs(job.probes or {}) do
+    local x, y = storage.origin[1] + p.tile[1] + 0.5, storage.origin[2] + p.tile[2] + 0.5
+    local m = surface.find_entities_filtered{position = {x, y}, type = {"furnace", "assembling-machine"}}[1]
+    if not m then return fail(string.format("probe %d: no machine on tile %d,%d", i, p.tile[1], p.tile[2])) end
+    local feed = {}
+    for _, item in ipairs(p.feed or {}) do table.insert(feed, {name = item, stack = prototypes.item[item].stack_size}) end
+    table.insert(storage.probes, {machine = m, feed = feed, drain = p.drain})
+  end
+  storage.inserters = surface.find_entities_filtered{area = storage.box, type = "inserter"}
+  table.sort(storage.inserters, function(a, b)
+    if a.position.y ~= b.position.y then return a.position.y < b.position.y end
+    return a.position.x < b.position.x
+  end)
+  for i, e in ipairs(storage.inserters) do
+    storage.inserter_info[i] = {name = e.name, quality = e.quality.name, moved = 0, last = 0, tally = {},
+      position = {e.position.x - storage.origin[1], e.position.y - storage.origin[2]}}
+  end
 end
 
 script.on_init(function()
@@ -305,13 +336,13 @@ script.on_init(function()
   storage.build = {ghosts_left = 0, proxies_left = 0, errors = {}}
   storage.origin = {0, 0}
   storage.outputs, storage.machines, storage.machine_info, storage.tally, storage.series = {}, {}, {}, {}, {}
-  storage.feeds = {}
+  storage.feeds, storage.probes, storage.inserters, storage.inserter_info = {}, {}, {}, {}
   storage.power = {harness_linked = false, other_networks = 0}
   storage.bucket, storage.unpowered = 0, 0
   local ok, err = pcall(setup)
   if not ok then fail("setup error: " .. tostring(err)) end
   if failed() then                               -- don't measure a broken setup
-    storage.outputs, storage.machine_info = {}, {}
+    storage.outputs, storage.machine_info, storage.inserter_info = {}, {}, {}
     write_result()
   end
 end)
@@ -352,6 +383,32 @@ local function tick(t)
   end
   for _, f in ipairs(storage.feeds) do           -- one stack per lane per tick keeps up with any belt tier
     for lane = 1, 2 do f.belt.get_transport_line(lane).insert_at_back(f.item, f.stack) end
+  end
+  for _, p in ipairs(storage.probes) do
+    local m = p.machine
+    if m.valid then
+      local inv = m.get_inventory(defines.inventory.crafter_input)
+      for _, f in ipairs(p.feed) do
+        local need = f.stack - inv.get_item_count(f.name)
+        if need > 0 then inv.insert{name = f.name, count = need} end
+      end
+      if p.drain then m.get_output_inventory().clear() end
+    end
+  end
+  -- An inserter's hand only shrinks when it lets go, so the drops over the window are what it moved.
+  if t >= W - 1 and t < W + N then
+    for i, e in ipairs(storage.inserters) do
+      local info = storage.inserter_info[i]
+      local s = e.valid and e.held_stack
+      local n = s and s.valid_for_read and s.count or 0
+      if in_window then
+        if n < info.last then info.moved = info.moved + info.last - n end
+        local st = e.valid and (STATUS[e.status] or "none") or "invalid"
+        info.tally[st] = (info.tally[st] or 0) + 1
+      end
+      info.last = n
+      if t == W + N - 1 and e.valid then info.hand = e.inserter_target_pickup_count end
+    end
   end
   for i, o in ipairs(storage.outputs) do
     local n, all = 0, 0                          -- n: the port's item, any quality

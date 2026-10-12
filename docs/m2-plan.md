@@ -1,6 +1,6 @@
 # M2 plan: solver and stacked green circuits
 
-Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 2026-10-11. **Status (2026-10-11):** pieces A, C and D are done on branch `v2-m2-acd` (see "Progress" below). Next: B, then E, then F. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
+Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 2026-10-11. **Status (2026-10-12):** pieces A, C and D are done (PR #2, branch `v2-m2-acd`), and B is done on branch `v2-m2-b` (see "Progress" below). Next: E, then F. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
 - **Input:** iron and copper plates on belts. The block makes its own copper cable.
 - **Output:** 240/s on a stacked turbo belt.
 - **Defaults:** everything researched; legendary electromagnetic plants, legendary productivity-3 in the machines, legendary beacons with legendary speed-3.
@@ -41,7 +41,7 @@ Sources: local 2.0.77 data (`data/`, `doc-html/`), a draftsman 3.3.1 probe, and 
 
 *Inserters, research and belts*
 - Stack inserter: hand 1 + 4 + 11 research = 16, and it puts up to 4 items per belt slot. Legendary is about 120/s chest-to-chest and about 80/s chest-to-turbo-belt (wiki data).
-- **No belt-to-machine figure for stacked belts is published.** We measure it.
+- **No belt-to-machine figure for stacked belts is published.** We measured it (piece B, F28): 87.47/s for a legendary stack inserter.
 - A turbo belt carries 60/s, or **240/s stacked** (120/s per lane). The turbo underground spans 11.
 - **The turbo loader is hidden** (it can't be built in survival) and can't output stacked items.
 
@@ -60,9 +60,10 @@ Sources: local 2.0.77 data (`data/`, `doc-html/`), a draftsman 3.3.1 probe, and 
   - It ignores quality's effect on pole reach.
 
 **The consequence:** the block isn't limited by machines. **It is limited by inserters and belts.**
-- About 3 cable inserters move 262/s between plants.
-- About 2 iron inserters pull from a stacked belt.
-- About 4 output inserters fill both 120/s lanes, because an inserter drops onto the far lane only (F1).
+- 3 cable inserters move 262/s between plants (120/s each, measured).
+- 2 iron inserters pull 87.3/s from a stacked belt. One manages 87.47/s, which leaves only 0.2% to spare.
+- 1 copper inserter covers 47.6/s.
+- 4 output inserters fill both 120/s lanes, 2 per lane on opposite sides of the belt. An inserter drops onto the far lane only (F1): the first adds 80/s and the second the remaining 40/s.
 - That all has to fit around a 4×4 plant together with its beacons.
 
 ## Decided: the machine bar (user, 2026-10-11)
@@ -107,8 +108,23 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
 - **D (checks):** `module_validity`, `beacon_reach`, `underground_pairing` and `hidden_entities` now run on every blueprint (F24–F27).
   - `checks.beacon_targets(bp)` returns `{machine: [beacons]}`, and that output goes straight into `effects.entity_rates(machine, beacons=...)` (`tests/test_m2_integration.py`).
 - **For B:**
-  - `products_finished` counts items including the productivity bonus (F18).
   - M2 runs must pass `research="all"`, because the stacked feed works without research.
+
+**B, 2026-10-12** (394 tests pass, 1 strict xfail):
+- **Harness additions:**
+  - Every inserter's items moved are counted from its hand.
+  - Measurement-only `probes` script-feed or drain chosen machines, so the link under test is the only bottleneck.
+- **Measured** (F28; stored in `effects.LEGENDARY_STACK_INSERTER` and held there by `tests/test_harness_primitives.py`). These are legendary stack inserters with everything researched:
+
+  | Link | Rate |
+  |---|---|
+  | Full stacked belt → plant | 87.47/s (the same for iron into circuits and copper into cable) |
+  | Plant → plant | 120/s |
+  | Plant → empty stacked lane | 80/s, far lane only. A 2nd inserter on that lane adds 40/s, up to its 120/s cap. |
+
+  Every rate repeats exactly across 2 runs.
+- **Solver check:** a plant with 1, 2 or 4 beacons runs at 32.5, 45.45 and 63.75 crafting speed. The solver gives the same, to 1e-6 (so the 2.0 rounding is tested), and output matches within 0.01%.
+- **Correction (F18):** `products_finished` counts crafts, productivity's bonus crafts included, not items. The harness was already right to multiply by product amount, and the multi-product open question is closed.
 
 ## Verification plan
 
@@ -117,10 +133,10 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
    - A plain stacked turbo belt fed by the script delivers 240/s, 120/120 per lane.
    - The M1 calibration suite still passes, since research stays `none` for M1 cases.
    - The verdict tests cover blocked versus idle.
-3. **B:** each measured rate is repeatable across 2 runs within 2%, and is recorded in `docs/techniques.md` as "Headless 2.0.77".
+3. **B:** each measured rate is repeatable across 2 runs within 2%, and is recorded in `docs/techniques.md` as "Headless 2.0.77". *Done 2026-10-12: identical across runs (F28).*
 4. **C:**
    - Unit tests match the table above.
-   - The solver's speed for N = 1, 2 and 4 beacons matches B's harness measurement within 1%, which also tests the 2.0 rounding.
+   - The solver's speed for N = 1, 2 and 4 beacons matches B's harness measurement within 1%, which also tests the 2.0 rounding. *Done 2026-10-12: speed is held to 1e-6, because 1% can't see the rounding (45.45 versus 45.44 is 0.014%).*
 5. **D:** each check catches its mutation (a productivity module in a beacon, 6 modules in a plant, a beacon out of reach, an unpaired underground, a turbo loader).
 6. **E:**
    - Static tests: ports, flow and checks.
