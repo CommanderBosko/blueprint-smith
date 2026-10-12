@@ -4,8 +4,9 @@ output, and the harness power reached the blueprint. Thresholds are inclusive.
 Idle time ("no ingredients") doesn't fail a machine: beacons come in whole steps, so an honest design runs some
 machines under capacity. The output bar catches a starved line, and each machine's share working is reported as
 utilisation instead of judged (docs/m2-plan.md, "Decided: the machine bar"). For the same reason a machine that
-unloads only into other machines isn't judged on blocking: under direct insertion its consumer sets the pace, so
-spare capacity shows as blocked rather than idle. Unpowered time isn't judged either: power is never short in the
+unloads only into other machines isn't judged on blocking or on output growth: under direct insertion its consumer
+sets the pace, so spare capacity shows as blocked rather than idle, and its buffer fills to a cap and waits rather
+than jamming anything (user, 2026-10-12). Unpowered time isn't judged either: power is never short in the
 user's save, so it's only reported."""
 from dataclasses import dataclass
 
@@ -112,7 +113,7 @@ def judge(result: HarnessResult, *, rate_min: float = 0.98, blocked_max: float =
 
     window = result.ticks.get("window", 0)
     for m in result.machines:
-        if m.output_growth > GROWTH_MAX:
+        if m.output_growth > GROWTH_MAX and not feeds_only_machines(m):
             problems.append(f"{_where(m)}: output backing up, {m.output_growth} more items waiting in it than when "
                             f"the window opened")
         x = share(m, BLOCKED, window)

@@ -83,7 +83,7 @@ The bar treats an over-capacity machine that's idle ("no ingredients") like a st
 
 **Amended (user, 2026-10-12):**
 - Unpowered time isn't judged.
-- A machine that unloads only into other machines isn't judged on blocking. Under direct insertion, the circuit block's cable plant read 55% blocked while the block delivered 240/s: spare capacity there shows as blocked, not idle.
+- A machine that unloads only into other machines isn't judged on blocking, nor (follow-up to F) on output growth. Under direct insertion, the circuit block's cable plant read 55% blocked while the block delivered 240/s: spare capacity there shows as blocked, not idle.
 
 ## Work breakdown
 
@@ -158,7 +158,7 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
   3. Runs the harness best-first in parallel batches and stops at the first batch with a pass.
 - **The real run** (`{"item": "electronic-circuit", "rate": 240}`) took 17 s and 8 harness runs. It chose the north layout with 2 beacons and iron 1, cable 3, east 2, north 2 inserters: 240.01/s, lanes 120/120.
   - **One iron inserter** carries 87.47/s against 87.27/s needed. The static 98% margin warns about it, but the harness passes it.
-  - **Two of the 8 failed** on the cable plant's output growing (44 and 24 items over the window), although it feeds only machines. That's the `GROWTH_MAX` follow-up from the PR #4 review showing up, and it doesn't change the winner. The same two fail on every run.
+  - **Two of the 8 failed** on the cable plant's output growing (44 and 24 items over the window), although it feeds only machines. That's the `GROWTH_MAX` follow-up from the PR #4 review showing up, and it doesn't change the winner. The same two fail on every run. *Fixed in the follow-up: the user exempted machine-only feeders from growth, and all 8 runs then pass.*
 - **In-game, 2026-10-12:** the user ran the optimiser's pick: "It worked well". Their screenshot shows both lanes full, with the single iron inserter keeping up.
 - **The user's tweak (T5):** they moved the 2 stub inserters to the east end of the plant's top edge and started the stub under the first one, which saves 2 turbo belts. The generator now builds the stub that way for both layouts, and `check_flow` rejects stub belt west of the first stub inserter, or a gap in the stub. Harness lanes stay at 120/120, and the optimiser's pick is unchanged.
 
