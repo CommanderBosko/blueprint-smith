@@ -1,6 +1,10 @@
 # M2 plan: solver and stacked green circuits
 
-Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 2026-10-11. **Status (2026-10-12):** pieces A, C and D are done (PR #2, branch `v2-m2-acd`), and B is done on branch `v2-m2-b` (see "Progress" below). Next: E, then F. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
+Milestone 2 of the v2 optimizer (`PROJECT_BRIEF.md`, v2 section). Researched 2026-10-11. **Status (2026-10-12):**
+- A, C and D are done (PR #2, branch `v2-m2-acd`).
+- B is done (PR #3, branch `v2-m2-b`).
+- E is done (PR #4, branch `v2-m2-e`), and its default block is confirmed in-game (2026-10-12).
+- Next: F. Target: "fill a turbo belt of green circuits" becomes a blueprint that passes the harness.
 - **Input:** iron and copper plates on belts. The block makes its own copper cable.
 - **Output:** 240/s on a stacked turbo belt.
 - **Defaults:** everything researched; legendary electromagnetic plants, legendary productivity-3 in the machines, legendary beacons with legendary speed-3.
@@ -77,6 +81,10 @@ The bar treats an over-capacity machine that's idle ("no ingredients") like a st
 - The output-rate bar (98%) still catches an input bottleneck.
 - Report each machine's utilisation instead of judging it.
 
+**Amended (user, 2026-10-12):**
+- Unpowered time isn't judged.
+- A machine that unloads only into other machines isn't judged on blocking. Under direct insertion, the circuit block's cable plant read 55% blocked while the block delivered 240/s: spare capacity there shows as blocked, not idle.
+
 ## Work breakdown
 
 The pieces run in parallel where possible:
@@ -126,6 +134,20 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
 - **Solver check:** a plant with 1, 2 or 4 beacons runs at 32.5, 45.45 and 63.75 crafting speed. The solver gives the same, to 1e-6 (so the 2.0 rounding is tested), and output matches within 0.01%.
 - **Correction (F18):** `products_finished` counts crafts, productivity's bonus crafts included, not items. The harness was already right to multiply by product amount, and the multi-product open question is closed.
 
+**E, 2026-10-12** (432 tests pass, 1 strict xfail):
+- **`circuit_block`:** the layout you approved, drawn in `generators/circuit_block.py`, is 13×11 tiles.
+  - A legendary cable plant hands cable to a legendary circuit plant by direct insertion, and 2 shared beacons reach both.
+  - Copper and iron come in stacked from the west; circuits leave south on a stacked turbo belt.
+  - The second lane is filled by a side-load stub (T5).
+- **Spec options:** `rate` (up to 240), `quality`, `beacons` (0–2), and `iron_inserters`, `cable_inserters`, `east_inserters` and `north_inserters` (1–4 each). Defaults come from the solver and F28's rates, sized to the 98% bar. Under-sized parts become `WARNING:` notes.
+- **Harness:** the default passes with research on: 239.71/s crafted (99.9%), lanes 120.00/120.00, and the circuit plant blocked 1.8%. One stub inserter gives lanes 120/80 and fails.
+- **In-game, 2026-10-12:** the default block ran in the user's game with both output lanes full and the stub side-loading as designed. The user: "It works perfectly." That's the harness's first in-game agreement on a non-furnace blueprint.
+- **Machine bar:** a machine that unloads only into other machines is no longer judged on blocking (see the amendment above).
+- **For F:**
+  - Every link's inserter count is an option, so variants are cheap to enumerate.
+  - The footprint is fixed at 13×11 except through the beacon count.
+  - Builds need `research="all"`; the notes say so.
+
 ## Verification plan
 
 1. **Baseline:** `.venv/bin/pytest -q` is green (187 passed, 1 xfail).
@@ -140,7 +162,7 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
 5. **D:** each check catches its mutation (a productivity module in a beacon, 6 modules in a plant, a beacon out of reach, an unpaired underground, a turbo loader).
 6. **E:**
    - Static tests: ports, flow and checks.
-   - Harness: the default variant delivers at least 98% of 240/s, both lanes about 120/s, and nothing blocked.
+   - Harness: the default variant delivers at least 98% of 240/s, both lanes about 120/s, and nothing blocked. *Done 2026-10-12: 99.9%, lanes 120/120, the circuit plant blocked 1.8% (`tests/test_circuit_block.py`).*
 7. **F:**
    - `blueprint-smith optimise` on the green-circuit request returns a passing blueprint.
    - It rejects a variant the harness fails, such as too few output inserters.

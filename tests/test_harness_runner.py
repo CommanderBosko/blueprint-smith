@@ -359,6 +359,31 @@ def test_unpowered_time_is_not_judged(statuses):
     assert v.passed, v.problems
 
 
+@pytest.mark.parametrize("unloads, passed", [
+    ({"machine": 3}, True),  # direct insertion: its consumer sets the pace
+    ({"machine": 2, "belt": 1}, False),
+    ({"belt": 2}, False),
+    ({"other": 1}, False),
+    ({"nothing": 1}, False),
+    ({}, False),  # not reported: judged as before
+])
+def test_blocked_time_is_only_excused_for_a_machine_feeding_only_machines(unloads, passed):
+    """User, 2026-10-12: under direct insertion an over-capacity machine shows as blocked, not idle."""
+    v = judge(with_machines(machine({"working": 1620, "full_output": 1980}, unloads=unloads)))
+    assert v.passed is passed, v.problems
+    if passed:
+        assert "machines: 1, none blocked on output; 1 feeding only machines, blocked up to 55.0%, not judged on it" \
+            in v.summary
+
+
+def test_unload_targets_are_parsed():
+    data = {"build": {}, "outputs": [], "machines": [
+        {"name": "electromagnetic-plant", "position": [4, 7], "working": 0.45, "unloads": {"machine": 3}},
+        {"name": "electromagnetic-plant", "position": [9, 7], "working": 0.96, "unloads": {}}]}
+    cable, circuit = parse_result(data).machines
+    assert (cable.unloads, circuit.unloads) == ({"machine": 3}, {})
+
+
 def test_output_under_98_percent_fails_even_when_every_machine_passes():
     idle = machine({"working": 2160, "no_ingredients": 1440})
     v = judge(with_machines(idle, idle, rate=14.0))

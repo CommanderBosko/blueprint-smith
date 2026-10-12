@@ -78,7 +78,7 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
     - Iron and copper plates come in on belts, and the block makes its own copper cable.
     - "Fill a turbo belt" means **stacked: 240/s** (Space Age belt stacking).
     - **Everything is researched** by default; a request can override levels. `ratios.py` must model research bonuses, and M2's harness runs use `--research all`.
-    - **Machine bar:** a machine fails only if it is blocked on output for more than 5% of the window, or its output buffer grows. Idle time from over-capacity is reported, not failed, because beacons come in whole steps and one machine can't be sized exactly. This replaces "every machine working at least 95%". Plan: `docs/m2-plan.md`.
+    - **Machine bar:** a machine fails only if it is blocked on output for more than 5% of the window, or its output buffer grows. Idle time from over-capacity is reported, not failed, because beacons come in whole steps and one machine can't be sized exactly. This replaces "every machine working at least 95%". *Amended 2026-10-12:* unpowered time isn't judged (power is never short in the user's save), and a machine that unloads only into other machines isn't judged on blocking, because under direct insertion spare capacity shows as blocked rather than idle. Plan: `docs/m2-plan.md`.
 - **Requests** are single blocks with their inputs on belts at the edge. If a request is ambiguous, Claude asks the user before building.
 
 ## Nice-to-haves / stretch

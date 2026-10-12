@@ -2,6 +2,36 @@
 
 ## Current Project State
 
+**2026-10-12 (close): M2 pieces A–E are built and in 3 stacked PRs. The green circuit block makes 240/s in the harness and in-game. Only F, the optimiser, is left.**
+- **PRs, none merged yet:**
+  - #2 `v2-m2-acd` → `main`: pieces A, C and D, plus dropping the unpowered bar.
+  - #3 `v2-m2-b` → `v2-m2-acd`: piece B.
+  - #4 `v2-m2-e` → `v2-m2-b`: piece E and its in-game confirmation.
+- **Merge order:** #2, then #3, then #4, retargeting each to `main` once the one below it is in. This close commit sits on `v2-m2-e`, the top of the stack, so the docs match the code. `main` is unchanged since `494416c`.
+- **Tests:** 432 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 70 s).
+- **`circuit_block` (E):** the layout the user approved is 13×11 tiles and drawn in `generators/circuit_block.py`.
+  - A legendary cable plant hands cable to a legendary circuit plant by direct insertion, and 2 shared beacons reach both.
+  - Copper and iron come in stacked from the west; circuits leave south on a stacked turbo belt.
+  - A side-load stub fills the second lane (T5).
+  - Harness: 239.71/s crafted, lanes 120/120.
+  - **Confirmed in-game 2026-10-12** ("It works perfectly"). It's the first non-furnace blueprint confirmed in the user's game.
+  - Its spec options (beacons, inserters per link) are what F will vary.
+- **Solver `effects.py` (C):** quality, modules, beacons, research, power and demand.
+  - The 2.0 whole-percent rounding was fitted on the server and matched all 476 values (F19).
+  - B's measured inserter rates live in `effects.LEGENDARY_STACK_INSERTER` (F28).
+  - `ratios.py` is unchanged, for the M1 generators.
+- **Checks (D):** `module_validity`, `beacon_reach`, `underground_pairing` and `hidden_entities` run on every blueprint. `checks.beacon_targets(bp)` feeds `effects.entity_rates` (F24–F27).
+- **Harness (A, B):**
+  - Ports have `stack` (1–4), and stacked inputs are fed by script.
+  - `--research all` works for M2.
+  - Every inserter's items moved are counted.
+  - Measurement-only `probes` script-feed or drain machines.
+  - Each machine records where it unloads.
+- **Machine bar:**
+  - A machine fails if it's blocked on output for more than 5% of the window, unless it unloads only into other machines.
+  - It also fails if its output buffer grows.
+  - Idle and unpowered time are reported, not judged (P2).
+
 **2026-10-11 (close): v2 milestone 1, the headless harness, is merged to `main`. Milestone 2 is planned but not started.**
 - `main` is at `080de55`, the merge of PR #1 (steel_column, the harness and the M2 plan), plus `c0d4def`, a project-local `/secret-scan` skill. Branch `v2-m1-harness` is deleted locally and on GitHub. Tests: 187 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 38 s).
 - **The harness:** `blueprint-smith evaluate SPEC` and `build --evaluate` run a blueprint in the Linux 2.0.77 headless server (`~/.cache/blueprint-smith/`, fetched by `install-server`). A run takes about 6 s, and several can run side by side. See `docs/techniques.md` H1 and `docs/m1-harness-plan.md`.
@@ -22,50 +52,59 @@
 
 ## Current Goals
 
-- **Next session:** start M2 from `docs/m2-plan.md` with pieces A, C and D in parallel:
-  - **A (harness):** stacked input feeding with `insert_at_back`, research-all runs, and the blocked-only machine bar.
-  - **C (solver):** quality, module, beacon and research maths in `effects.py`.
-  - **D (checks):** module validity, beacon reach, underground pairing, hidden entities.
-- **Then:** B (measured legendary stack-inserter rates), E (the `circuit_block` generator) and F (the optimiser).
-- **Long term:** the M2 end goal. "Fill a turbo belt of green circuits" should produce a beaconed electromagnetic-plant blueprint that passes the harness. The optimiser returns the smallest passing footprint, and the user spot-checks it in-game. M3 (learning from existing blueprints) and M4 (freeform placement) are stretch goals. The logistics and power & fluids generators are paused.
+- **Next session:**
+  - The user merges PRs #2 → #3 → #4.
+  - **Decide F's scope first.** `circuit_block` is a single layout, so its footprint only changes with the beacon count (about 13×11). F can either tune that one layout's options, or a second layout comes first, so that "smallest passing footprint" has real alternatives.
+  - Then build F: `optimise.py` and a CLI `optimise` command. It enumerates variants, prefilters them with the solver, runs the survivors through the harness in parallel with `research="all"`, and returns the smallest passing footprint, with power breaking ties.
+- **M2 done:** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and the user spot-checks the chosen one in-game. The default block already passed in-game.
+- **Long term:** M3 (learning from existing blueprints) and M4 (freeform placement) are stretch goals. The logistics and power & fluids generators are paused.
 - **Still open from v1:** 2 more `steel_column` samples to reach the brief's 3 per type.
 
 ## Recent Decisions
 
+- **Power is never judged** (user, 2026-10-12: "power is not a problem in my save"). Unpowered time is reported only. Saved to memory (`feedback_power-not-judged.md`). The harness-power-not-linked failure stays, because it guards the measurement itself.
+- **A machine that unloads only into other machines isn't judged on blocking** (user, 2026-10-12). Under direct insertion, spare capacity shows as `full_output` instead of idle: the circuit block's cable plant read 55% blocked while the block delivered 240/s. A machine unloading onto a belt is still held to 5%.
+- **`circuit_block` layout** (user approved, 2026-10-12): one cable plant and one circuit plant with 2 shared beacons. The second output lane comes from a side-load stub (T5), not T1's splitter, because a 4×4 plant has no rows to spare. Copper comes in stacked like iron (user).
+- **Each M2 piece gets its own stacked PR** (user's choice), so each reviews on its own.
+- **B's measured rates are code, held by tests.** `effects.LEGENDARY_STACK_INSERTER` is checked against the harness, so drift fails. Plant speed is held to 1e-6, not the plan's 1%, because 1% can't see the 2.0 rounding (45.45 versus 45.44 is a 0.014% difference).
+- **`effects.py` is separate from `ratios.py`.** It reuses `ratios.recipe_info`, and the M1 generators keep base-speed `ratios`.
+- **2.0.77 facts the checks follow** (D, confirmed headless):
+  - Hidden entities are marked on their item, not the entity.
+  - An underground pairs with the first same-tier underground on its line.
+  - Beacon reach is the beacon's footprint grown by 3, overlapped with the machine's collision box.
+  - Only a module's bonuses must be allowed.
 - **v2 is a search-and-harness optimizer, not a trained ML model** (user, 2026-10-11). The request was "an ML algorithm to optimise blueprints". The interview reduced it to a solver, generator variants and a headless harness as ground truth, with ML used only where it beats those. An independent reviewer's fixes were folded in: numeric bars, footprint defined as bounding-box tiles including the belts (power breaks ties), electromagnetic plants by default, and M3 and M4 moved to stretch. Recorded in the v2 section of `PROJECT_BRIEF.md`.
 - **The harness uses the free Linux headless server, not the Steam copy.** The Steam install is the Windows build under Proton. The headless 2.0.77 build needs no login. Each run gets its own write-data dir, because two instances can't share a lock file.
 - **Amended P2:** a harness failure fails the build. Builds checked only statically keep throughput as `WARNING:` notes.
-- **Output is judged on what the machines crafted**, not on what reaches the sink, and the measurement window scales with the slowest craft cycle. Two failures were added beyond the confirmed bar, because a blocked furnace keeps crafting into a 100-plate buffer and reads "working" for minutes: a machine whose output backs up, and output that never reaches the belt end.
-- **The harness assumes no research by default.** With everything researched, Space Age's steel productivity research adds 10% to every steel result, which the ratio maths doesn't model.
-- **M2 scope (user, 2026-10-11):** iron and copper plates come in, the block makes its own cable, the output is 240/s on a stacked turbo belt, and everything is researched. Machines fail only when **blocked on output** for more than 5% of the window. Beacon steps make exact sizing impossible (a cable plant with 1 beacon is about 73% busy), so idle over-capacity is reported as utilisation, not failed.
-- **PR #1 was merged with a merge commit** so the three commits kept their SHAs and detailed messages on `main`.
+- **Output is judged on what the machines crafted**, not on what reaches the sink, and the measurement window scales with the slowest craft cycle.
+- **The harness assumes no research by default** (M1 cases). M2 runs pass `research="all"`.
 - **Blueprint strings go to the user as a file path or a `wl-copy` command, never retyped in a reply.** A hand-retyped steel string looped and came out corrupted on 2026-10-11.
-- **Steel from ore uses direct insertion, as a separate generator** (user's choice, 2026-10-11). `smelting_column` keeps its plate-fed steel option.
 - **Use draftsman 3.3.1, not 4.0.0.** 4.0.0 can't run its data lifecycle on 2.0.77: the wheel ships `compatibility/defines.lua` but `update.py` wants `compatibility/defines/2.0.lua`. `pyproject.toml` pins `<4`.
 - **Warnings are failures.** Draftsman only warns on overlaps and unknown entities, so the pipeline escalates them to `BuildError`.
-- **The pipeline wires poles, and `pole_network` checks the wiring.** Pasted blueprints keep only the wires they carry. The first in-game import had no wires, and 11 of 12 poles were dead.
+- **The pipeline wires poles, and `pole_network` checks the wiring.** Pasted blueprints keep only the wires they carry.
 - **Flow correctness is per-generator.** The generic checks can't tell a reversed inserter from a correct one, so each generator registers its own `check_flow`.
 - **Every generator is designed to use whole belts** (P1): both output lanes full, the whole input belt eaten, no machine blocked.
-- **`power_coverage` measures reach from the pole's centre.** It used the pole's edge before, which was half a tile too generous for medium poles.
-- Verified from prototype data: directions N=0 NE=2 E=4 S=8 W=12; underground `max_distance` is 5/7/9 in total, not the gap; an inserter's blueprint `direction` is the side it picks up from.
+- Verified: directions N=0 NE=2 E=4 S=8 W=12; underground `max_distance` is 5/7/9/11 in total, not the gap; an inserter's blueprint `direction` is the side it picks up from.
 
 ## Known Issues / Tech Debt
 
-- **The pre-T1 steel jam doesn't reproduce in the harness** (strict xfail). In the user's game the last furnaces couldn't unload; in the harness every furnace works, even after 20 minutes. Possible causes: a backed-up consumer, the startup burst, or a mod. Low priority, because no generator builds that layout any more.
+- **`circuit_block` needs `--research all` passed by hand** (its build notes say so). F should pass it automatically, or the generator should declare it.
+- **Inserter rates are measured for legendary stack inserters only.** At another `quality`, `circuit_block`'s defaults and warnings use the legendary numbers, and only the harness knows.
+- **Untested:** whether empty or unpowered beacons count toward a machine's beacon number N (`effects.py` assumes they do), exact .5 ties in the 2.0 rounding, and mixed beacon types.
+- **draftsman 3.3.1 gaps still open:** `generate_power_connections(only_axis=True)` never wires a 2×2 pole to a 1×1 pole, and `power_coverage` ignores quality's effect on pole reach, which is conservative. D covered modules, undergrounds and beacon reach.
+- **The pre-T1 steel jam doesn't reproduce in the harness** (strict xfail). Low priority, because no generator builds that layout any more.
 - **Copper 30/s still needs the user's in-game look** at whether the bottom furnaces are blocked. The harness says they aren't.
-- **Mods gap:** the harness runs vanilla plus Space Age, but every in-game confirmation was in the user's modded game.
-- **The calibration set is all furnaces.** There's no ground truth for assemblers, modules or beacons until M2's measured primitives and the user's spot-check.
-- **draftsman 3.3.1 gaps M2 must cover itself:** it doesn't validate modules, doesn't check underground pairing or distance, and has no beacon-reach helper. `generate_power_connections(only_axis=True)` never wires a 2×2 pole to a 1×1 pole, and it ignores quality's effect on pole reach.
-- **Loaders can't output stacked items, and the turbo loader is hidden.** The harness has to feed stacked belts by script (piece A).
-- Leftover temp dir `/tmp/bps-spike-wuxnvy3_` (about 750 KB) from the M1 spike is safe to delete. The cleanup command was denied during the session.
+- **Mods gap:** the harness runs vanilla plus Space Age, but every in-game confirmation was in the user's modded game. So far the two agree, circuit block included.
 - **Untested:** loading the user's mods into draftsman (it overwrites the vanilla data in the venv), and a round trip against a real blueprint from `~/.factorio/blueprint-storage-2.dat`.
-- Ratio maths uses base crafting speed only. M2 piece C adds modules, beacons and quality.
-- Pyright shows stale "import could not be resolved" errors in the editor; runtime and pytest are fine.
+- Pyright shows draftsman typing noise in the editor; runtime and pytest are fine.
 - `spike/` holds throwaway scripts, including the harness spike.
 
 ## Next Steps
 
-1. M2 pieces A, C and D in parallel, each on its own file boundary from the work breakdown in `docs/m2-plan.md`.
-2. Piece B (measured inserter rates and beacon speed in the harness) once A lands. Then E (the generator) and F (`blueprint-smith optimise`).
-3. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).
-4. Delete `/tmp/bps-spike-wuxnvy3_`.
+1. The user merges PRs #2 → #3 → #4, retargeting each to `main` as the one below it merges.
+2. Decide F's scope: tune `circuit_block`'s options only, or add a second layout first.
+3. Build F (`optimise.py`, CLI `optimise`) per `docs/m2-plan.md`. It must:
+   - reject a variant the harness fails, such as too few output inserters;
+   - pick the smallest passing footprint;
+   - pass `research="all"` itself.
+4. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).

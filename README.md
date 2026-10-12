@@ -4,7 +4,7 @@ Generates importable Factorio 2.0 + Space Age blueprint strings from JSON specs.
 
 ## Current Status
 
-Two generators work in-game: `smelting_column` (all 3 samples confirmed) and `steel_column` (1 of 3). The headless evaluation harness, milestone 1 of the v2 optimizer, reproduces the confirmed in-game results. Milestone 2 (green circuits from beaconed electromagnetic plants, plus a solver and an optimiser) is planned in `docs/m2-plan.md` and not started. See `project-state.md` for detail and `session-summary.md` for history.
+Three generators work in-game: `smelting_column` (all 3 samples confirmed), `steel_column` (1 of 3) and `circuit_block` (240 green circuits/s on a stacked turbo belt, confirmed). The headless harness agrees with every in-game result except one old layout. Milestone 2 has its solver, checks, measured inserter rates and generator built; the optimiser is next. See `docs/m2-plan.md`, `project-state.md` for detail and `session-summary.md` for history.
 
 ## Features
 
@@ -12,16 +12,21 @@ Two generators work in-game: `smelting_column` (all 3 samples confirmed) and `st
 - Generators:
   - `smelting_column`: electric furnaces with lane balancing, so both output lanes fill
   - `steel_column`: ore to steel, with iron furnaces feeding steel furnaces by direct insertion
+  - `circuit_block`: green circuits from legendary electromagnetic plants. A cable plant feeds a circuit plant by direct insertion under shared beacons, filling both lanes of a stacked turbo belt (240/s).
+- Solver (`effects.py`): quality, modules, beacons, research, power and demand, matching Factorio 2.0.77's rounding
 - Every draftsman warning (overlap, unknown entity) fails the build
 - Static checks:
   - inserter pickup and drop targets
   - pole coverage and pole wiring
+  - module limits, beacon reach, underground pairing, survival-buildable entities
   - declared input and output ports
   - per-layout flow direction
-- Headless evaluation (`evaluate`, `build --evaluate`): pastes the blueprint into a Factorio 2.0.77 headless server, feeds and powers it, and fails it if:
+- Headless evaluation (`evaluate`, `build --evaluate`, `--research all` for M2 blocks): pastes the blueprint into a Factorio 2.0.77 headless server, feeds it (stacked belts too) and powers it, and fails it if:
   - output is under 98% of target
-  - any machine works under 95% of the time
+  - a machine unloading onto a belt is blocked on output more than 5% of the time
   - any machine's output backs up
+
+  Idle and unpowered time are reported as utilisation, not failed.
 - Decode any blueprint string back to JSON
 
 ## Getting Started
@@ -47,13 +52,19 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
 ## Project Structure
 
 - `src/blueprint_smith/` — pipeline, checks, ratio maths, CLI, `generators/` and `harness/`
-- `tests/` — pytest suite, including a harness calibration suite
+- `tests/` — pytest suite, including harness calibration and measured-primitive suites
 - `examples/` — sample specs
 - `docs/` — `techniques.md` (learned mechanics and layout techniques) and the milestone plans
 - `PROJECT_BRIEF.md` — confirmed scope (v1 and v2). `CLAUDE.md` — guidance for Claude Code
 
 ## Recent Changes
 
+- **2026-10-12:**
+  - Milestone 2 pieces A–E, in stacked PRs #2–#4.
+  - Stacked-belt harness and the new machine bar.
+  - `effects.py` solver and new generic checks.
+  - Measured legendary stack-inserter rates.
+  - `circuit_block`, confirmed in-game at 240/s.
 - **2026-10-11 (afternoon):**
   - Lane-balanced smelting column: all 3 samples pass in-game.
   - New `steel_column` generator.
@@ -61,13 +72,12 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
   - Plan for milestone 2.
   - Spec validation fixes and a pole-reach fix.
 - **2026-10-11** — First in-game test passed after a fix: the pipeline now wires power poles together, and a new `pole_network` check fails any unwired pole.
-- **2026-09-29** — Scaffolded the package, CLI and pipeline, and added the `smelting_column` generator.
 
 ## Roadmap
 
 v2 is a blueprint optimizer. You ask for something like "fill a turbo belt of green circuits", and it chooses machines, modules and beacons, lays out the block, and verifies it headlessly without an in-game test.
 - Milestone 1, the harness, is done.
-- Milestone 2 (solver, green-circuit generator, optimiser) is next.
+- Milestone 2: the solver, checks, measured primitives and green-circuit generator are done. The optimiser is next.
 - Learning from existing blueprints and freeform placement are stretch goals.
 - Logistics and power & fluids generators are paused.
 

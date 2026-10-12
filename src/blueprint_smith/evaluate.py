@@ -1,8 +1,8 @@
 """Run a built blueprint in the headless harness and judge it (v2, amended P2).
 
 The verdict is a hard pass/fail: output below 98% of target fails, and so does any machine blocked on output for
-more than 5% of the window, or whose output backs up. A machine idle for want of ingredients or power only shows
-in the reported utilisation (harness/verdict.py).
+more than 5% of the window (unless it unloads only into other machines), or whose output backs up. A machine
+idle for want of ingredients or power only shows in the reported utilisation (harness/verdict.py).
 """
 import math
 from dataclasses import dataclass

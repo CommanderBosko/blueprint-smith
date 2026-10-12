@@ -21,6 +21,8 @@ EXPECTED = {
     "smelting_column_steel.json": ("iron-plate", 15.0, "steel-plate", (6, 71), 3.0, "transport-belt"),
     "steel_column.json": ("iron-ore", 15.0, "steel-plate", (10, 71), 3.0, "transport-belt"),
 }
+# examples with more than one input, whose exact ports their own tests check
+COVERED_ELSEWHERE = {"circuit_block.json": "tests/test_circuit_block.py"}
 SPECS = [
     *(json.loads(p.read_text()) for p in sorted(EXAMPLES.glob("*.json"))),
     *({"type": t, "count": n} for t in ("smelting_column", "steel_column") for n in (1, 2, 3)),
@@ -33,23 +35,22 @@ def _belts_at(bp, x, y):
 
 
 def test_every_example_is_covered():
-    assert sorted(p.name for p in EXAMPLES.glob("*.json")) == sorted(EXPECTED)
+    assert sorted(p.name for p in EXAMPLES.glob("*.json")) == sorted([*EXPECTED, *COVERED_ELSEWHERE])
 
 
 @pytest.mark.parametrize("spec", SPECS, ids=lambda s: f"{s['type']}-{s.get('count', s.get('rate'))}")
 def test_ports_sit_on_the_belt_ends(spec):
     r = build(spec)
     bp = r.blueprint
-    (inp,) = [p for p in r.ports if p.role == "input"]
-    (out,) = [p for p in r.ports if p.role == "output"]
-    assert len(r.ports) == 2
+    assert [p.role for p in r.ports].count("output") == 1 and "input" in [p.role for p in r.ports]
     # port tiles are relative to the blueprint's top-left tile
     ox = min(e.tile_position.x for e in bp.entities)
     oy = min(e.tile_position.y for e in bp.entities)
-    for port, sign in ((inp, -1), (out, 1)):
+    for port in r.ports:
+        sign = -1 if port.role == "input" else 1
         x, y = port.tile[0] + ox, port.tile[1] + oy
         (belt,) = _belts_at(bp, x, y)
-        assert belt.name == port.belt == spec.get("belt", "transport-belt")
+        assert belt.name == port.belt == spec.get("belt", port.belt)
         assert belt.direction == port.direction
         dx, dy = STEP[port.direction]
         # nothing feeds the input's first tile from behind; nothing takes the output's last tile further
