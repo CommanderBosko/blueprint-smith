@@ -76,16 +76,19 @@ def test_the_default_is_sized_by_the_solver_and_the_measured_rates():
         by_row.setdefault((e.name, _at(e)[1]), []).append(_at(e)[0])
     assert by_row[(pa.INSERTER, -1)] == [1, 10, 15, 24]  # 1 near inserter a red plant (87.47/s, F30)
     assert by_row[(pa.LONG, -1)] == [5, 6, 19, 20]  # 2 long-handed a cable plant (2 x 13.33/s, F29)
-    assert by_row[(pa.INSERTER, 4)] == [2, 3, 11, 12, 16, 17, 26, 27]  # 2 output inserters a red plant (T7)
+    # 1 output inserter a red plant: the lane reset (T12) leaves each a half-empty lane at worst
+    assert by_row[(pa.INSERTER, 4)] == [3, 12, 17, 27]
     assert sorted(x for (name, y), xs in by_row.items() if 0 <= y <= 3 for x in xs) == [4, 9, 18, 23]
 
 
-def test_one_output_inserter_is_warned_about_on_a_filling_lane():
-    """The last plant drops onto a lane its row has filled to 73%: one inserter gets too few free slots (T7)."""
+def test_the_lane_reset_leaves_one_output_inserter_room():
+    """Without the reset the last plant would drop onto a lane its row had filled to 73%, where one inserter gets
+    21.69/s (T7). With it (T12) the fullest drop is onto a lane a quarter full: 60.56/s for 32.54/s."""
     notes = build({**SPEC, "output_inserters": 1}).notes
-    assert any(n.startswith("WARNING: advanced-circuit plant -> output lane (the last plant's free slots) carries "
-                            "21.69/s") for n in notes)
-    assert "WARNING: the block delivers 218.44/s, under the 240/s target" in notes
+    assert ("advanced-circuit plant -> output lane (free slots on the filling lane): 1 stack inserter(s) carry "
+            "60.56/s for 32.54/s") in notes
+    assert not [n for n in notes if n.startswith("WARNING")]
+    assert pa.reset_after(pa.row_layout(4)) == 2 and pa.reset_after(pa.row_layout(1)) == 0
 
 
 def test_one_near_item_builds_green_circuits():
@@ -106,10 +109,10 @@ def test_green_circuits_at_a_full_belt_are_left_to_the_circuit_block():
 def test_variants_are_the_solver_approved_inserter_counts():
     found = pa.variants(REQUEST)
     assert found and all(v["plants_per_row"] == 4 and v["east_beacon"] for v in found)
-    assert {v["output_inserters"] for v in found} == {2}
+    assert {v["output_inserters"] for v in found} == {1, 2}
     assert {v["far_inserters"] for v in found} == {2, 3, 4}
     default = {**SPEC, "item": RED, "rate": 240, "plants_per_row": 4, "east_beacon": True, "near_inserters": 1,
-               "hand_inserters": 1, "far_inserters": 2, "output_inserters": 2}
+               "hand_inserters": 1, "far_inserters": 2, "output_inserters": 1}
     assert default in found
     for v in found[:3]:
         build(v)
@@ -192,7 +195,7 @@ def _swap(tile, name):
     # T12: no lane reset at all
     (_drop((13, 9), name=pa.SPLITTER), "row B: 0 lane reset splitters on its output belt at y=9, not 1"),
     # an output inserter turned round unloads output A into a red plant
-    (_turn((2, 4), S, name=pa.INSERTER), "moves items from output belt to product plant"),
+    (_turn((3, 4), S, name=pa.INSERTER), "moves items from output belt to product plant"),
     # a hand-off gap without its inserters: the first red plant of each row gets no cable
     (_drop((4, 0), (4, 14), name=pa.INSERTER), "has no inserter moving items from intermediate plant to product plant"),
     # T10: a stack inserter can't reach over the near belt; it feeds the cable plant from the near belt instead
@@ -213,7 +216,7 @@ def test_the_unmutated_wrapper_builds(monkeypatch):
 
 # --- the harness (real server; skipped without one) ---------------------------------------------------------
 
-HARNESS_SPECS = {"default": SPEC, "one output inserter": {**SPEC, "output_inserters": 1}}
+HARNESS_SPECS = {"default": SPEC, "two output inserters": {**SPEC, "output_inserters": 2}}
 
 
 @pytest.fixture(scope="module")
@@ -243,15 +246,22 @@ def test_the_default_red_block_fills_a_stacked_turbo_belt(runs):
 
 
 @pytest.mark.harness
-def test_one_output_inserter_a_plant_still_backs_up_with_the_lane_reset(runs):
-    """T7, T12: with the lane reset one output inserter a plant makes the rate with both lanes full (without it, it
-    fell to 97.2%), but a plant's output still grows past the bar, so 2 a plant stay the default."""
-    ev = runs["one output inserter"]
-    assert not ev.verdict.passed
+def test_two_output_inserters_a_plant_also_pass(runs):
+    """T7, T12: the user's in-game copy had 2 a plant before they found 1 enough (2026-10-12)."""
+    ev = runs["two output inserters"]
+    assert ev.verdict.passed, "\n".join(ev.verdict.problems)
     (o,) = ev.result.outputs
-    assert o.produced_rate >= 0.98 * 240
     assert o.lane_rates == pytest.approx([120, 120], rel=0.02)
-    assert any("output backing up" in p for p in ev.verdict.problems), ev.verdict.problems
+
+
+@pytest.mark.harness
+def test_one_output_inserter_swings_by_less_than_its_hand(runs):
+    """A red plant's result slots swing with its stack inserter's 16-item hand: the growth bar allows for it, and
+    the default's growth stays within it (it read 4-7 items, not building, over 6x the window)."""
+    ev = runs["default"]
+    reds = [m for m in ev.result.machines if m.recipe == RED]
+    assert all(m.unload_hand == 16 for m in reds)
+    assert max(m.output_growth for m in reds) <= 16
 
 
 @pytest.mark.harness

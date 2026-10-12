@@ -64,6 +64,7 @@ class MachineMeasure:
     productivity: float | None = None  # productivity bonus at the end of the window (modules and research)
     # inserters unloading it, by where they drop: "machine", "belt", "other", "nothing"; empty: not reported
     unloads: dict[str, int] = field(default_factory=dict)
+    unload_hand: int | None = None  # the biggest hand among the inserters unloading it; None: not reported
 
 
 @dataclass(frozen=True)
@@ -402,7 +403,8 @@ def _parse(data, ports, warmup_ticks, window_ticks, wall, run_dir) -> HarnessRes
             recipe=m.get("recipe"), crafts=float(m.get("crafts", 0.0)), output_growth=int(m.get("output_growth", 0)),
             quality=m.get("quality"), crafting_speed=_float(m.get("crafting_speed")),
             productivity=_float(m.get("productivity")),
-            unloads={str(k): int(v) for k, v in _dict(m.get("unloads")).items()}))
+            unloads={str(k): int(v) for k, v in _dict(m.get("unloads")).items()},
+            unload_hand=None if m.get("unload_hand") is None else int(m["unload_hand"])))
 
     inserters = []
     for i in _list(data.get("inserters")):

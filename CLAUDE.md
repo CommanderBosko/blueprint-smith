@@ -38,7 +38,7 @@ Scaffolded around draftsman 3.3.1 with four generators:
 - `steel_column`: ore to steel by direct insertion; first sample confirmed in-game.
 - `circuit_block`: M2's 240/s green circuit block. The west layout (the default) and the compact `copper: "north"` layout (11×11, the optimiser's pick) were both confirmed in-game on 2026-10-12. Following the user's in-game tweak, the stub now starts under its first inserter.
 
-- `plant_array`: M2b's generic beaconed plant array, built for 240/s red circuits. Confirmed in-game 2026-10-12: 240.5/s with both lanes full, with the user's three resource cuts and their mid-row lane reset (T12) built in.
+- `plant_array`: M2b's generic beaconed plant array, built for 240/s red circuits. Confirmed in-game 2026-10-12: 240.5/s with both lanes full, with the user's three resource cuts and their mid-row lane reset (T12) built in. With the reset, 1 output inserter a plant is enough (in-game 2026-10-12), and the optimiser picks it.
 - Every blueprint gets input display panels (P3) and an output lane balancer (P4) from the pipeline. Both are confirmed in-game 2026-10-12.
 
 `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`.
@@ -109,7 +109,7 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
   - Runs the harness best-first in parallel batches, and stops at the first batch that holds a pass.
 - `harness/`: the headless evaluation harness (technique H1 in `docs/techniques.md`).
   - `mod/control.lua` is the in-game side: it pastes, feeds, powers and measures, then writes a JSON result.
-  - `runner.py` runs `--create` then `--benchmark` in a temp dir and parses the result. `verdict.py` judges it.
+  - `runner.py` runs `--create` then `--benchmark` in a temp dir and parses the result. `verdict.py` judges it; its output-growth bar allows for the biggest hand unloading each machine (`growth_max`).
   - `evaluate.py` picks the warmup and window and ties them together.
   - Each run takes about 6 s, and runs can go in parallel. `pipeline.build` records warnings process-wide, so build serially and only run the harness in threads.
 

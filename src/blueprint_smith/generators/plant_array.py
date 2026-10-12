@@ -18,13 +18,13 @@ y  0         >>>>S^.^PPPPiKKKKiPPPPPPPPiKKKKiPPPPBBB...   K hands cable to the P
 y  1         ....Sv.^PPPP.KKKK.PPPPPPPP.KKKK.PPPPBBB...   gives the last P a 5th
 y  2         .....u.^PPPP.KKKK.PPPPPPPP.KKKK.PPPPBBB...
 y  3         >>>>>>S^PPPP.KKKK.PPPPPPPP.KKKK.PPPP......
-y  4         ..n..nSv|.ii|....|.iiSv.ii|....|..ii.|....   2 output inserters a P (T7); the lane reset S, v (T12)
-y  5         ..v..u.u..>>>>>>>>>>>S>>>>>>>>>>>>>>>>>>>v   output A: row A on its south lane (F1)
+y  4         ..n..nSv|..i|....|..iSv..i|....|...i.|....   1 output inserter a P; the lane reset S, v (T12)
+y  5         ..v..u.u...>>>>>>>>>>S>>>>>>>>>>>>>>>>>>>v   output A: row A on its south lane (F1)
 y  6         ..v..BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBv   the shared beacon row: 4 per plant (F24)
 y  7         ..v..BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB>   the port at x=33: both outputs side-load it (T9)
 y  8         ..v..BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB^
-y  9         ..v..n.n..>>>>>>>>>>>S>>>>>>>>>>>>>>>>>>>^   output B: row B on its north lane
-y 10         ..v..>v<|.ii|....|.iiS^.ii|....|..ii.|....   row B's riser M, right under the band
+y  9         ..v..n.n...>>>>>>>>>>S>>>>>>>>>>>>>>>>>>>^   output B: row B on its north lane
+y 10         ..v..>v<|..i|....|..iS^..i|....|...i.|....   row B's riser M, right under the band
 y 11..17     row B: rows -3..4 mirrored about y=7, its near belt fed down x=-2 from M
 
 The west front end (x -8..-1) splits each input belt between the rows. Copper (port at y=-3) splits at once: row
@@ -219,12 +219,9 @@ def sizing(rate: float, quality: str, recipe: Recipe, row: Row, east_beacon: boo
     carries half the rate. A P's near link carries n_near x 87.47/s of both near items (F30) and its hand-off from K
     n_hand x 120/s (F28); a K's far link carries n_far x 13.33/s (F29) and scales the P's it feeds by that and its
     own capacity. Output inserters drop only into free slots (F1, T7): a P's n_out inserters carry n_out x 80/s
-    (F28) times the share of its lane still free when the lane reaches it, so the last P's need the most. The row
-    delivers its plants in lane order, west to east, up to the lane's 120/s.
-
-    The lane reset (T12) empties the far lane halfway, but this deliberately doesn't credit it. Credited, it passes
-    1 output inserter a P, and the harness fails that (2026-10-12: a P's output grew past the bar). Uncredited, the
-    model is pessimistic in the same place the harness is strict."""
+    (F28) times the share of its lane still free when the lane reaches it. The lane reset (T12) empties the far lane
+    after the first `reset_after` P, so the last P before it and the last P of the row need the most. The row
+    delivers its plants in lane order, west to east, up to the 120/s lane its whole output belt side-loads (T9)."""
     stack, long = effects.LEGENDARY_STACK_INSERTER, effects.LEGENDARY_LONG_INSERTER
     p_beacons, k_beacons = beacon_counts(row, east_beacon)
     products = {p: plant(recipe.product, quality, n) for p, n in p_beacons.items()}
@@ -250,14 +247,20 @@ def sizing(rate: float, quality: str, recipe: Recipe, row: Row, east_beacon: boo
     def room(upstream):  # products/s a P's output inserters can drop onto a lane already carrying `upstream`
         return n_out * stack["machine_to_belt"] * max(0.0, 1 - upstream / LANE)
 
-    delivered = 0.0
-    for p in sorted(row.products):
-        delivered += min(capped[p], room(delivered), LANE - delivered)
+    order = sorted(row.products)
+    segment = {p: int(i >= reset_after(row) > 0) for i, p in enumerate(order)}  # 0 before the lane reset, 1 after
+    delivered = far = 0.0  # the row's total, and what's on the far lane the inserters drop onto
+    for i, p in enumerate(order):
+        if i and segment[p] != segment[order[i - 1]]:
+            far = 0.0  # the reset moved it all to the near lane
+        took = min(capped[p], room(far), LANE - delivered)
+        delivered, far = delivered + took, far + took
     capacity = sum(made.values())
 
     half = rate / 2
     share = {p: half * made[p] / capacity for p in row.products}  # a P's part of its row's demand
-    before = {p: sum(share[q] for q in row.products if q < p) for p in row.products}  # on the lane upstream of p
+    # on the far lane upstream of p, since the lane reset
+    before = {p: sum(share[q] for q in row.products if q < p and segment[q] == segment[p]) for p in row.products}
     tight_out = min(row.products, key=lambda p: room(before[p]) / share[p])
     tight_p = max(row.products, key=lambda p: made[p])  # every P has the same inserters: the busiest is tightest
     ins = need(tight_p, share[tight_p])
@@ -273,7 +276,7 @@ def sizing(rate: float, quality: str, recipe: Recipe, row: Row, east_beacon: boo
              MARGIN, ins[recipe.intermediate]),
         Link(f"far belt -> {recipe.intermediate} plant", n_far, n_far * long["belt_to_machine"], MARGIN,
              far_need(k)),
-        Link(f"{recipe.product} plant -> output lane (the last plant's free slots)", n_out, room(before[tight_out]),
+        Link(f"{recipe.product} plant -> output lane (free slots on the filling lane)", n_out, room(before[tight_out]),
              MARGIN, share[tight_out]),
         Link("one row's plants -> its output lane", len(row.products), LANE, 1.0, half),
     )

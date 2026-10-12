@@ -85,7 +85,9 @@ A and B run in parallel: A by a sub-agent, and B by the main session, since its 
 **The lane reset, 2026-10-12 (after D):** the user saw the red plants' output inserters waiting on a full lane in-game, and added T1's priority splitter and side-load halfway along each output belt.
 - Their exported blueprint diffed to just that change, and the generator now matches it entity for entity (T12).
 - Harness: 240.55/s crafted, 240.00/s delivered, lanes 120.00/120.00, and no red plant blocked (before: 238.09/s, 1.1%).
-- With 1 output inserter a plant it also makes 240/s with full lanes, but one plant's output grows 4 items, past the bar. 2 a plant stay the default, and the 1 a plant case is an open question in `docs/techniques.md`.
+- With 1 output inserter a plant it also makes 240/s with full lanes, but the harness failed one plant on 4 items of output growth.
+- The user confirmed 1 a plant works in-game, and over 6× the window the growth stayed at 4–7 items, never building: a stack inserter's 16-item hand swinging. The growth bar now allows for the biggest hand unloading a machine (P2).
+- `sizing` credits the reset, and `optimise` now picks 1 output inserter a plant: 313.85 MW against 320.58 MW, and 8 stack inserters fewer.
 
 ## Risks
 

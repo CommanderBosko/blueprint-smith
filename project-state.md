@@ -13,8 +13,8 @@
 - **Every block now gets two ends from the pipeline:** a display panel showing each input's item, 2 tiles out (P3), and a lane balancer after each belt output (P4, T11). Both are the user's, both are confirmed in-game, and both apply to all four generators.
 - **Then a fourth change, the lane reset (T12):** the user saw the output inserters waiting on a full lane and added T1's priority splitter and side-load halfway along each output belt. It's in the generator, which matches their blueprint entity for entity.
 - **Harness:** 240.55/s crafted, 240.00/s delivered, lanes 120.00/120.00, no red plant blocked. Before the reset it was 238.09/s with 1.1% blocked.
-- **Open:** whether 1 output inserter a plant is enough with the reset. It makes 240/s, but one plant's output grows 4 items, past the 3-item bar.
-- **Tests:** 622 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 130 s).
+- **1 output inserter a plant is enough with the reset** (user, in-game, 2026-10-12). The harness's growth bar had failed it on 4 items, which over 6× the window turned out to be a 16-item hand's swing, not a backlog. The bar now allows for the biggest hand unloading a machine, and `optimise` picks 1 a plant (8 stack inserters fewer).
+- **Tests:** 631 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 140 s).
 
 **2026-10-12 (later): M2 piece F, the optimiser, is built on branch `v2-m2-f`. `blueprint-smith optimise` turns "fill a turbo belt of green circuits" into an 11×11 blueprint that passes the harness, and it worked in the user's game. That completes M2's definition of done; merging F is what's left.**
 - **In-game spot-check (2026-10-12):** "It worked well." The user's screenshot shows both output lanes full, the north copper inserter feeding the cable plant, and the single iron inserter keeping up.
@@ -81,6 +81,7 @@
 
 ## Recent Decisions
 
+- **The output-growth bar allows for the biggest hand unloading a machine** (user, 2026-10-12, choosing to make 1 output inserter a plant the default after it worked in-game): a flowing machine's result slots swing by up to that hand.
 - **Every input gets a display panel showing its item, 2 tiles out with one free tile between** (P3, user, 2026-10-12, from a screenshot of their own build). The pipeline adds them; they're left out of port tiles, the footprint and the harness's box.
 - **Every belt output ends in a lane balancer** (P4/T11, user, 2026-10-12): a splitter, then both halves side-load the middle belt from opposite sides. The pipeline adds it and moves the output port to its end. Generator checks judge the generator's layout before the ends are added.
 - **Spend undergrounds and belts sparingly** (user, 2026-10-12, their in-game copy of the red block): one hop under many belts, not many under one; merge two items as soon as they sit side by side (T8); merge two outputs by side-loading from both sides (T9). It's checklist item 12 in `docs/techniques.md`.

@@ -21,8 +21,16 @@ EPS = 1e-9  # absorbs float noise such as 0.98 * 15, so exactly-at-threshold pas
 # bar uses the crafted rate; the sink only has to show the items actually arrive.
 DELIVERY_MIN = 0.8
 # A machine whose result slots gain more than this over the window is backing up, even while it reads "working".
-# An inserter takes 1-3 items at a time, so a flowing machine's slots stay within a few items.
+# Its inserters empty it a hand at a time, so a flowing machine's slots swing by up to the biggest hand unloading it
+# (16 for a researched legendary stack inserter: 4-7 items of "growth" that didn't build over 6x the window, user,
+# 2026-10-12), and never less than GROWTH_MAX (the M1 furnaces' inserters take 1-3).
 GROWTH_MAX = 3
+
+
+def growth_max(m: MachineMeasure) -> int:
+    """How many items a machine's result slots may gain over the window: GROWTH_MAX, or the biggest hand unloading
+    it if that's more."""
+    return max(GROWTH_MAX, m.unload_hand or 0)
 
 
 @dataclass(frozen=True)
@@ -113,7 +121,7 @@ def judge(result: HarnessResult, *, rate_min: float = 0.98, blocked_max: float =
 
     window = result.ticks.get("window", 0)
     for m in result.machines:
-        if m.output_growth > GROWTH_MAX and not feeds_only_machines(m):
+        if m.output_growth > growth_max(m) and not feeds_only_machines(m):
             problems.append(f"{_where(m)}: output backing up, {m.output_growth} more items waiting in it than when "
                             f"the window opened")
         x = share(m, BLOCKED, window)
