@@ -60,7 +60,7 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
 ## Recent Changes
 
 - **2026-10-12:**
-  - Milestone 2 pieces A–E, in stacked PRs #2–#4.
+  - Milestone 2 pieces A–E, merged to `main` (PRs #2–#4).
   - Stacked-belt harness and the new machine bar.
   - `effects.py` solver and new generic checks.
   - Measured legendary stack-inserter rates.

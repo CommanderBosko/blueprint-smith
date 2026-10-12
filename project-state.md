@@ -2,12 +2,8 @@
 
 ## Current Project State
 
-**2026-10-12 (close): M2 pieces A–E are built and in 3 stacked PRs. The green circuit block makes 240/s in the harness and in-game. Only F, the optimiser, is left.**
-- **PRs, none merged yet:**
-  - #2 `v2-m2-acd` → `main`: pieces A, C and D, plus dropping the unpowered bar.
-  - #3 `v2-m2-b` → `v2-m2-acd`: piece B.
-  - #4 `v2-m2-e` → `v2-m2-b`: piece E and its in-game confirmation.
-- **Merge order:** #2, then #3, then #4, retargeting each to `main` once the one below it is in. This close commit sits on `v2-m2-e`, the top of the stack, so the docs match the code. `main` is unchanged since `494416c`.
+**2026-10-12: M2 pieces A–E are merged to `main`. The green circuit block makes 240/s in the harness and in-game. Only F, the optimiser, is left.**
+- **Merged** in order with merge commits: #2 (pieces A, C and D, plus dropping the unpowered bar), #3 (piece B), #4 (piece E and its in-game confirmation). Each PR's head passed the full suite first, and a code review of each found no blockers (follow-ups under Known Issues). The stack branches are deleted.
 - **Tests:** 432 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 70 s).
 - **`circuit_block` (E):** the layout the user approved is 13×11 tiles and drawn in `generators/circuit_block.py`.
   - A legendary cable plant hands cable to a legendary circuit plant by direct insertion, and 2 shared beacons reach both.
@@ -53,7 +49,6 @@
 ## Current Goals
 
 - **Next session:**
-  - The user merges PRs #2 → #3 → #4.
   - **Decide F's scope first.** `circuit_block` is a single layout, so its footprint only changes with the beacon count (about 13×11). F can either tune that one layout's options, or a second layout comes first, so that "smallest passing footprint" has real alternatives.
   - Then build F: `optimise.py` and a CLI `optimise` command. It enumerates variants, prefilters them with the solver, runs the survivors through the harness in parallel with `research="all"`, and returns the smallest passing footprint, with power breaking ties.
 - **M2 done:** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and the user spot-checks the chosen one in-game. The default block already passed in-game.
@@ -90,6 +85,9 @@
 
 - **`circuit_block` needs `--research all` passed by hand** (its build notes say so). F should pass it automatically, or the generator should declare it.
 - **Inserter rates are measured for legendary stack inserters only.** At another `quality`, `circuit_block`'s defaults and warnings use the legendary numbers, and only the harness knows.
+- **The machine→machine blocking exemption hides an under-sized hand-off** (from the PR #4 review; matters for F). With `cable_inserters: 1` the verdict fails only on the output rate and no longer names the cable plant or its link, so F can't tell which link to grow from the verdict alone. Exempt machines are also still judged on output growth (`GROWTH_MAX`), which a short warmup could trip on an over-capacity plant.
+- **`circuit_block`'s `check_flow` doesn't check belt continuity:** a missing iron, stub or output belt tile passes statically and only the harness catches it.
+- **Smaller review follow-ups:** `tests/test_ports.py` lost its exact-port-count and default-belt assertions for the M1 generators; the verdict silently exempts non-working statuses other than idle (`no_recipe`, `invalid`); `_where` and the belt stack limit (4) are duplicated across modules.
 - **Untested:** whether empty or unpowered beacons count toward a machine's beacon number N (`effects.py` assumes they do), exact .5 ties in the 2.0 rounding, and mixed beacon types.
 - **draftsman 3.3.1 gaps still open:** `generate_power_connections(only_axis=True)` never wires a 2×2 pole to a 1×1 pole, and `power_coverage` ignores quality's effect on pole reach, which is conservative. D covered modules, undergrounds and beacon reach.
 - **The pre-T1 steel jam doesn't reproduce in the harness** (strict xfail). Low priority, because no generator builds that layout any more.
@@ -101,10 +99,9 @@
 
 ## Next Steps
 
-1. The user merges PRs #2 → #3 → #4, retargeting each to `main` as the one below it merges.
-2. Decide F's scope: tune `circuit_block`'s options only, or add a second layout first.
-3. Build F (`optimise.py`, CLI `optimise`) per `docs/m2-plan.md`. It must:
+1. Decide F's scope: tune `circuit_block`'s options only, or add a second layout first.
+2. Build F (`optimise.py`, CLI `optimise`) per `docs/m2-plan.md`. It must:
    - reject a variant the harness fails, such as too few output inserters;
    - pick the smallest passing footprint;
    - pass `research="all"` itself.
-4. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).
+3. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).

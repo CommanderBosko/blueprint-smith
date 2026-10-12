@@ -42,7 +42,7 @@ Scaffolded around draftsman 3.3.1 with three generators:
 
 **Now: the v2 blueprint optimizer** (`PROJECT_BRIEF.md`, v2 section, confirmed 2026-10-11).
 - Milestone 1, the headless evaluation harness, is done.
-- M2 pieces A–E (`docs/m2-plan.md`) are done in stacked PRs #2–#4, not yet merged.
+- M2 pieces A–E (`docs/m2-plan.md`) are done and merged to `main` (PRs #2–#4, 2026-10-12).
 - **Next: piece F, the optimiser.** Decide its scope first: tune `circuit_block` only, or add a second layout (see `project-state.md`).
 
 Logistics and power & fluids generators are paused.
