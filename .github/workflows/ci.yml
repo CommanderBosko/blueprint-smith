@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install ruff
+      - run: ruff check
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # A skip fails the run (tests/conftest.py), so the harness tests can't quietly drop out.
+      BPS_REQUIRE_HARNESS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -e ".[dev]"
+
+      # The 2.0.77 headless server (~57 MB download, 350 MB unpacked): fetched from factorio.com once, then cached.
+      # Saved straight after the download, so a failing test run doesn't throw it away.
+      - id: server
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/blueprint-smith/factorio-headless-2.0.77
+          key: factorio-headless-2.0.77
+      - if: steps.server.outputs.cache-hit != 'true'
+        run: blueprint-smith install-server
+      - if: steps.server.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/blueprint-smith/factorio-headless-2.0.77
+          key: factorio-headless-2.0.77
+
+      - run: pytest -q -rs

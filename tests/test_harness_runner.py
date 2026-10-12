@@ -9,7 +9,7 @@ import pytest
 
 from blueprint_smith import harness
 from blueprint_smith.generators import Port
-from blueprint_smith.harness import runner, server
+from blueprint_smith.harness import runner
 from blueprint_smith.harness.runner import (BuildStatus, HarnessError, HarnessResult, InserterMeasure,
                                             MachineMeasure, OutputMeasure, PowerMeasure, Probe, config_ini, job_lua,
                                             lua_string, lua_value, mod_list, parse_result, prepare)
@@ -430,9 +430,10 @@ def test_unload_hand_is_parsed():
 
 
 def test_summary_reports_utilisation_by_kind():
-    circuit = lambda working, x: MachineMeasure("electromagnetic-plant", (x, 2.0), working / 3600,
-                                                {"working": working, "item_ingredient_shortage": 3600 - working},
-                                                recipe="electronic-circuit", quality="legendary")
+    def circuit(working, x):
+        return MachineMeasure("electromagnetic-plant", (x, 2.0), working / 3600,
+                              {"working": working, "item_ingredient_shortage": 3600 - working},
+                              recipe="electronic-circuit", quality="legendary")
     cable = MachineMeasure("electromagnetic-plant", (2.0, 8.0), 0.73, {"working": 2628, "full_output": 36},
                            recipe="copper-cable", quality="legendary")
     furnace = machine({"working": 3600})
@@ -538,7 +539,8 @@ def test_machine_quality_speed_and_productivity_are_parsed():
 
 def test_a_machine_whose_output_piles_up_is_backing_up_even_while_working():
     r = make_result()
-    grown = lambda n: replace(r, machines=[replace(r.machines[0], output_growth=n)])
+    def grown(n):
+        return replace(r, machines=[replace(r.machines[0], output_growth=n)])
     assert judge(grown(3)).passed  # an inserter hand's worth is noise
     assert judge(grown(4)).problems == [
         "electric-furnace at (3.5, 1.5): output backing up, 4 more items waiting in it than when the window opened"]
