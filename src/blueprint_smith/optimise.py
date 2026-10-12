@@ -19,7 +19,7 @@ from draftsman.data import recipes
 from . import checks, effects, generators
 from .errors import BuildError, SpecError
 from .evaluate import evaluate
-from .pipeline import BuildResult, build
+from .pipeline import LABEL, BuildResult, build
 
 TICKS = 60
 MAX_JOBS = 8  # harness runs at once by default (capped by the CPU count); each run takes about 6 s
@@ -59,11 +59,13 @@ def _key(spec) -> str:
 
 def footprint(bp) -> tuple[int, int]:
     """(width, height) in whole tiles of the blueprint's bounding box: every entity, the input and output belts
-    included (PROJECT_BRIEF v2). Collision boxes sit just inside their tiles, so the edges round outward."""
-    box = bp.get_world_bounding_box()
-    if box is None:
+    included (PROJECT_BRIEF v2), but not the input labels (P3). Collision boxes sit just inside their tiles, so
+    the edges round outward."""
+    boxes = [e.get_world_bounding_box() for e in bp.entities if e.name != LABEL]
+    if not boxes:
         return 0, 0
-    (x1, y1), (x2, y2) = box.top_left, box.bot_right
+    x1, y1 = min(b.top_left[0] for b in boxes), min(b.top_left[1] for b in boxes)
+    x2, y2 = max(b.bot_right[0] for b in boxes), max(b.bot_right[1] for b in boxes)
     return math.ceil(x2 - 1e-6) - math.floor(x1 + 1e-6), math.ceil(y2 - 1e-6) - math.floor(y1 + 1e-6)
 
 

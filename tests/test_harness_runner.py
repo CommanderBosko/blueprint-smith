@@ -409,6 +409,26 @@ def test_output_growth_still_fails_a_working_machine():
         "electric-furnace at (3.5, 1.5): output backing up, 4 more items waiting in it than when the window opened"]
 
 
+@pytest.mark.parametrize("hand, growth, passed", [
+    (None, 3, True), (None, 4, False),  # no hand reported: the M1 bar
+    (1, 3, True), (1, 4, False),  # a small hand never lowers it below 3
+    (16, 7, True), (16, 16, True), (16, 17, False),  # a stack inserter's hand: its swing isn't a backlog
+])
+def test_output_growth_allows_for_the_biggest_unloading_hand(hand, growth, passed):
+    """User, 2026-10-12: with one legendary stack inserter (hand 16) a red plant read 4-7 items of growth that didn't
+    build over 6x the window, while the block made 240/s with both lanes full."""
+    v = judge(with_machines(machine({"working": 3600}, output_growth=growth, unload_hand=hand, unloads={"belt": 1})))
+    assert v.passed is passed, v.problems
+
+
+def test_unload_hand_is_parsed():
+    data = {"build": {}, "outputs": [], "machines": [
+        {"name": "electromagnetic-plant", "position": [4, 7], "working": 1, "unloads": {"belt": 1}, "unload_hand": 16},
+        {"name": "electric-furnace", "position": [9, 7], "working": 1}]}
+    plant, furnace = parse_result(data).machines
+    assert (plant.unload_hand, furnace.unload_hand) == (16, None)
+
+
 def test_summary_reports_utilisation_by_kind():
     circuit = lambda working, x: MachineMeasure("electromagnetic-plant", (x, 2.0), working / 3600,
                                                 {"working": working, "item_ingredient_shortage": 3600 - working},

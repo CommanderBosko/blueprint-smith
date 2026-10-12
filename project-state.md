@@ -2,6 +2,20 @@
 
 ## Current Project State
 
+**2026-10-12 (latest): M2b is done on branch `v2-red-circuits` (uncommitted). `blueprint-smith optimise` turns "fill a turbo belt of red circuits" into a two-row plant array that passes the harness and ran at 240/s in the user's game.**
+- **In-game spot-check (2026-10-12):** "It shows 240.5/s with both lanes full. The balancer works. The display panels are placed perfectly." The Rate Calculator's 240.5/s is exactly the solver's 2 × 120.27 (F19, F21, F24).
+- **`plant_array`:** generic over the recipe. Each red plant gets cable by direct insertion from a cable plant beside it, two mirrored rows share one beacon row, and the cable plants reach copper with long-handed inserters (T7–T10). It's 42×21 before the pipeline's ends.
+- **The user's in-game copy cut resources in three places, now in the generator** (their exported string, diffed tile by tile: the generated block matches it entity for entity):
+  - copper hops under both near belts in one go;
+  - row B's near items merge as they surface;
+  - both outputs side-load a middle belt.
+  - That's 4 undergrounds and 5 belts fewer.
+- **Every block now gets two ends from the pipeline:** a display panel showing each input's item, 2 tiles out (P3), and a lane balancer after each belt output (P4, T11). Both are the user's, both are confirmed in-game, and both apply to all four generators.
+- **Then a fourth change, the lane reset (T12):** the user saw the output inserters waiting on a full lane and added T1's priority splitter and side-load halfway along each output belt. It's in the generator, which matches their blueprint entity for entity.
+- **Harness:** 240.55/s crafted, 240.00/s delivered, lanes 120.00/120.00, no red plant blocked. Before the reset it was 238.09/s with 1.1% blocked.
+- **1 output inserter a plant is enough with the reset** (user, in-game, 2026-10-12). The harness's growth bar had failed it on 4 items, which over 6× the window turned out to be a 16-item hand's swing, not a backlog. The bar now allows for the biggest hand unloading a machine, and `optimise` picks 1 a plant (8 stack inserters fewer).
+- **Tests:** 631 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 140 s).
+
 **2026-10-12 (later): M2 piece F, the optimiser, is built on branch `v2-m2-f`. `blueprint-smith optimise` turns "fill a turbo belt of green circuits" into an 11×11 blueprint that passes the harness, and it worked in the user's game. That completes M2's definition of done; merging F is what's left.**
 - **In-game spot-check (2026-10-12):** "It worked well." The user's screenshot shows both output lanes full, the north copper inserter feeding the cable plant, and the single iron inserter keeping up.
 - **The user's tweak, now in the generator (T5):** the stub inserters sit at the east end of the plant's top edge, and the stub starts under the first one. That's 3 belt tiles instead of 5. `check_flow` enforces it, with mutation tests.
@@ -58,14 +72,19 @@
 ## Current Goals
 
 - **Next:**
-  - Open and merge the `v2-m2-f` PR.
-  - Merge the follow-up PR that exempts machine-only feeders from the output-growth check (user, 2026-10-12). With it, all 8 of the optimiser's runs pass.
+  - Commit `v2-red-circuits` and open its PR, when the user asks.
+  - Pick the next milestone with the user.
+- **M2b done (2026-10-12):** "fill a turbo belt of red circuits" goes through `optimise` to a passing plant array, and it ran at 240/s in the user's game.
 - **M2 done (2026-10-12):** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and that pick worked in the user's game.
 - **Long term:** M3 (learning from existing blueprints) and M4 (freeform placement) are stretch goals. The logistics and power & fluids generators are paused.
 - **Still open from v1:** 2 more `steel_column` samples to reach the brief's 3 per type.
 
 ## Recent Decisions
 
+- **The output-growth bar allows for the biggest hand unloading a machine** (user, 2026-10-12, choosing to make 1 output inserter a plant the default after it worked in-game): a flowing machine's result slots swing by up to that hand.
+- **Every input gets a display panel showing its item, 2 tiles out with one free tile between** (P3, user, 2026-10-12, from a screenshot of their own build). The pipeline adds them; they're left out of port tiles, the footprint and the harness's box.
+- **Every belt output ends in a lane balancer** (P4/T11, user, 2026-10-12): a splitter, then both halves side-load the middle belt from opposite sides. The pipeline adds it and moves the output port to its end. Generator checks judge the generator's layout before the ends are added.
+- **Spend undergrounds and belts sparingly** (user, 2026-10-12, their in-game copy of the red block): one hop under many belts, not many under one; merge two items as soon as they sit side by side (T8); merge two outputs by side-loading from both sides (T9). It's checklist item 12 in `docs/techniques.md`.
 - **Machines that unload only into other machines are exempt from the output-growth check too** (user, 2026-10-12). Under direct insertion, their buffer fills to a cap and then they wait, so growth can't jam anything. Before the exemption it falsely failed 2 of 8 good variants in every optimiser run; with it, all 8 pass and the pick is the same (branch `verdict-growth-exemption`).
 - **Stub inserters go at the output end of the plant's edge, and the stub starts under the first one** (user, 2026-10-12, an in-game tweak that saves 2 turbo belts). The generator and `check_flow` follow it (T5).
 - **F covers the optimiser and a second layout, built together** (user, 2026-10-12). The second layout is `copper: "north"`, approved from an ASCII preview over a vertically stacked alternative of the same size.
@@ -114,6 +133,6 @@
 
 ## Next Steps
 
-1. Merge `v2-m2-f` (M2 done).
-2. Merge the `verdict-growth-exemption` PR.
+1. Commit `v2-red-circuits` and open its PR, when the user asks (M2b done).
+2. Choose the next milestone with the user.
 3. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).

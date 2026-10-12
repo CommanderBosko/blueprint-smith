@@ -53,7 +53,7 @@ local function write_result()
     local tl = storage.tally[i]
     table.insert(machines, {name = m.name, quality = m.quality, position = m.position, recipe = m.recipe,
       crafts = m.crafts or 0, output_growth = m.output_growth or 0, crafting_speed = m.crafting_speed,
-      unloads = m.unloads,
+      unloads = m.unloads, unload_hand = m.unload_hand,
       productivity = m.productivity, working = ((tl.working or 0) + (tl.normal or 0)) / N, statuses = tl})
   end
   local inserters = {}
@@ -176,6 +176,13 @@ local function build(force)
   for _, p in pairs(surface.find_entities_filtered{type = "item-request-proxy"}) do fulfil(p) end
   storage.build.ghosts_left = surface.count_entities_filtered{type = {"entity-ghost", "tile-ghost"}}
   storage.build.proxies_left = surface.count_entities_filtered{type = "item-request-proxy"}
+  -- display panels only label the inputs (P3): clear them so the loaders fit, and keep them out of the box,
+  -- as pipeline.origin does
+  local kept = {}
+  for _, e in pairs(built) do
+    if e.valid and e.type == "display-panel" then e.destroy() else table.insert(kept, e) end
+  end
+  built = kept
 
   local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
   for _, e in pairs(built) do
@@ -336,11 +343,13 @@ end
 
 -- Where each machine unloads, read once the inserters have run (their targets aren't set before). A machine that
 -- feeds only other machines (direct insertion) is paced by its consumer, so the verdict doesn't judge its blocking.
+-- The biggest hand among its unloading inserters is how far its result slots swing while it flows.
 local function record_unloads()
   local index = {}
   for i, m in ipairs(storage.machines) do
     if m.valid then index[m.unit_number] = i end
     storage.machine_info[i].unloads = {}
+    storage.machine_info[i].unload_hand = 0
   end
   for _, e in ipairs(storage.inserters) do
     local from, to = e.valid and e.pickup_target, e.valid and e.drop_target
@@ -351,8 +360,9 @@ local function record_unloads()
         kind = (to.type == "assembling-machine" or to.type == "furnace") and "machine" or BELT_TYPES[to.type] and "belt"
           or "other"
       end
-      local u = storage.machine_info[i].unloads
-      u[kind] = (u[kind] or 0) + 1
+      local info = storage.machine_info[i]
+      info.unloads[kind] = (info.unloads[kind] or 0) + 1
+      info.unload_hand = math.max(info.unload_hand, e.inserter_target_pickup_count)
     end
   end
 end

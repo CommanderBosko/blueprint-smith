@@ -52,16 +52,15 @@ from draftsman.constants import Direction
 from draftsman.data import entities
 from draftsman.entity import new_entity
 
-from .. import effects, ratios
+from .. import effects
 from ..errors import SpecError
 from . import Port, register
+from .beaconed import BEACON, BELT, INSERTER, LANE, MARGIN, PLANT, PROD, SPEED, STACK, Link
+from .beaconed import count as _count
+from .beaconed import plant as _plant
 
-PLANT, BEACON, BELT, INSERTER, POLE = "electromagnetic-plant", "beacon", "turbo-transport-belt", "stack-inserter", "substation"
+POLE = "substation"
 CIRCUIT, CABLE = "electronic-circuit", "copper-cable"
-PROD, SPEED = "productivity-module-3", "speed-module-3"
-STACK = 4  # items per belt slot once belt stacking is researched
-MARGIN = 0.98  # the harness's output bar
-LANE = ratios.belt_lane_capacity(BELT) * STACK  # 120/s on a stacked turbo lane
 NORTH, EAST, SOUTH, WEST = Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
 
 CABLE_AT, CIRCUIT_AT = (-5, 0), (0, 0)  # 4x4 plants, top-left tiles
@@ -164,31 +163,8 @@ def check_flow(bp) -> list[str]:
     return problems
 
 
-def _count(spec: dict, key: str, default: int, low: int = 1, high: int = 4) -> int:
-    n = spec.get(key, default)
-    if isinstance(n, bool) or not isinstance(n, int) or not low <= n <= high:
-        raise SpecError(f"'{key}' must be an integer from {low} to {high}, got {n!r}")
-    return n
-
-
 def _rate_ok(rate) -> bool:
     return not isinstance(rate, bool) and isinstance(rate, (int, float)) and 0 < rate <= 2 * LANE
-
-
-def _plant(recipe: str, quality: str, beacons: int) -> effects.MachineRates:
-    slots = entities.raw[PLANT]["module_slots"]
-    beacon = effects.Beacon(((SPEED, quality),) * entities.raw[BEACON]["module_slots"], quality)
-    return effects.machine_rates(PLANT, recipe, quality=quality, modules=[(PROD, quality)] * slots,
-                                 beacons=[beacon] * beacons, research="all")
-
-
-@dataclass(frozen=True)
-class Link:
-    name: str
-    inserters: int
-    carries: float  # items/s the link's inserters move, or a full lane's 120/s
-    margin: float  # what its WARNING applies: the harness's 98% while inserters are the limit, 1 for a full lane
-    demand: float  # items/s the link must move for the block's rate
 
 
 @dataclass(frozen=True)

@@ -33,10 +33,13 @@ When you need a decision, choice, or clarification from the user — not just in
 
 ## Status
 
-Scaffolded around draftsman 3.3.1 with three generators:
+Scaffolded around draftsman 3.3.1 with four generators:
 - `smelting_column`: all 3 samples confirmed in-game.
 - `steel_column`: ore to steel by direct insertion; first sample confirmed in-game.
 - `circuit_block`: M2's 240/s green circuit block. The west layout (the default) and the compact `copper: "north"` layout (11×11, the optimiser's pick) were both confirmed in-game on 2026-10-12. Following the user's in-game tweak, the stub now starts under its first inserter.
+
+- `plant_array`: M2b's generic beaconed plant array, built for 240/s red circuits. Confirmed in-game 2026-10-12: 240.5/s with both lanes full, with the user's three resource cuts and their mid-row lane reset (T12) built in. With the reset, 1 output inserter a plant is enough (in-game 2026-10-12), and the optimiser picks it.
+- Every blueprint gets input display panels (P3) and an output lane balancer (P4) from the pipeline. Both are confirmed in-game 2026-10-12.
 
 `PROJECT_BRIEF.md` is the confirmed scope. Public GitHub repo: `CommanderBosko/blueprint-smith` (MIT), branch `main`.
 
@@ -45,7 +48,14 @@ Scaffolded around draftsman 3.3.1 with three generators:
 - M2 pieces A–E (`docs/m2-plan.md`) are done and merged to `main` (PRs #2–#4, 2026-10-12).
 - Piece F, the optimiser, is built on branch `v2-m2-f` (2026-10-12). `blueprint-smith optimise` picks the 11×11 north layout for 240/s, and that pick worked in-game on 2026-10-12. That completes M2's definition of done.
 - Piece F is merged (PR #7). A follow-up on branch `verdict-growth-exemption` exempts machines that feed only other machines from the output-growth check (user, 2026-10-12).
-- **Next:** M2 is done. M3 and M4 are stretch goals; pick the next milestone with the user.
+- M2 is done.
+- **Now: M2b, red circuits on a generic plant array** (`docs/red-circuits-plan.md`, scoped with the user 2026-10-12), on branch `v2-red-circuits`.
+  - Pieces A–C are built: `blueprint-smith optimise` picks a 42×21 two-row block for 240/s (237.80/s in the harness, lanes 119/119).
+  - The user built it in-game on 2026-10-12, cut resources in a couple of places and added an output balancer. Every block now gets input labels (P3) and an output lane balancer (P4) from the pipeline.
+  - The generator now has the user's three changes, matching their copy entity for entity (238.09/s headless).
+  - Piece D: the regenerated block ran at 240.5/s in-game with both lanes full (2026-10-12). **M2b is done.**
+  - **Next:** commit and PR `v2-red-circuits` when the user asks, then pick the next milestone with them.
+- M3 and M4 remain stretch goals.
 
 Logistics and power & fluids generators are paused.
 
@@ -69,9 +79,18 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
 
 ## Code architecture (`src/blueprint_smith/`)
 
-- `pipeline.build(spec)` is the single entry point: look up the generator by `spec["type"]`, build a draftsman `Blueprint`, then **turn every draftsman warning into a failure** (overlap, unknown entity, etc. only warn in draftsman) and run all checks. Any problem raises `BuildError`; a bad spec raises `SpecError`.
+- `pipeline.build(spec)` is the single entry point: look up the generator by `spec["type"]`, build a draftsman `Blueprint`, then **turn every draftsman warning into a failure** (overlap, unknown entity, etc. only warn in draftsman) and run all checks. Any problem raises `BuildError`; a bad spec raises `SpecError`. Every block gets two ends from the pipeline:
+  - A display panel showing each input's item, 2 tiles upstream of the input (P3, `labels`/`check_labels`). The panels are left out of `origin`, `optimise.footprint` and the harness's box, and the harness destroys them after pasting.
+  - A lane balancer after each belt output (P4/T11, `balancers`/`check_balancers`), which moves the output port to its end.
+  - The generator's own `checks=` and its ports are judged on its layout alone, before the ends are added.
 - `generators/`: a generator is `spec -> (entities, notes, ports)`, registered with `@register(name, checks=(...), variants=..., research=...)`. `variants(request)` lists the candidate specs the optimiser may try, and `research` is what the harness runs the type with. A `Port` is a belt end the harness feeds or drains. `pipeline.build` makes port tiles relative to the blueprint's top-left and fails a port that isn't on an open belt end. Layout-specific checks go in `checks=` and are keyed by type name, so wrapping a generator in a test still applies them.
 - `generators/columns.py`: building blocks shared by the furnace columns (spec options, `count`/`rate`, the 6-row A/B module).
+- `generators/beaconed.py`: what the beaconed generators share: the standard meta's entities, the stacked turbo lane, spec counts, and `plant(recipe, quality, beacons)` rates from the solver.
+- `generators/plant_array.py`: M2b's generic array.
+  - Product plants are fed by direct insertion from intermediate plants beside them, in two mirrored rows around one shared beacon row.
+  - A west front end splits each input belt between the rows and merges the two near items one per lane (T8). The cable plants reach their copper with long-handed inserters (T10).
+  - An east merge brings both rows onto one belt (T9).
+  - `sizing` holds the link math, including the free-slot output model (T7).
 - `generators/circuit_block.py`: the M2 green circuit block. Its spec options (copper side, beacons, inserters per link) are what the optimiser varies. `sizing` holds the link math that both the notes and `variants` use.
 - `checks.py`: generic checks for every blueprint. These can't tell a reversed inserter from a correct one; direction/flow correctness is each generator's own `check_flow`.
   - Inserter pickup and drop positions hit an entity.
@@ -90,7 +109,7 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
   - Runs the harness best-first in parallel batches, and stops at the first batch that holds a pass.
 - `harness/`: the headless evaluation harness (technique H1 in `docs/techniques.md`).
   - `mod/control.lua` is the in-game side: it pastes, feeds, powers and measures, then writes a JSON result.
-  - `runner.py` runs `--create` then `--benchmark` in a temp dir and parses the result. `verdict.py` judges it.
+  - `runner.py` runs `--create` then `--benchmark` in a temp dir and parses the result. `verdict.py` judges it; its output-growth bar allows for the biggest hand unloading each machine (`growth_max`).
   - `evaluate.py` picks the warmup and window and ties them together.
   - Each run takes about 6 s, and runs can go in parallel. `pipeline.build` records warnings process-wide, so build serially and only run the harness in threads.
 

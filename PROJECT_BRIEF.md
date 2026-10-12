@@ -80,6 +80,11 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
     - **Everything is researched** by default; a request can override levels. `ratios.py` must model research bonuses, and M2's harness runs use `--research all`.
     - **Machine bar:** a machine fails only if it is blocked on output for more than 5% of the window, or its output buffer grows. Idle time from over-capacity is reported, not failed, because beacons come in whole steps and one machine can't be sized exactly. This replaces "every machine working at least 95%". *Amended 2026-10-12:* unpowered time isn't judged (power is never short in the user's save), and a machine that unloads only into other machines isn't judged on blocking, because under direct insertion spare capacity shows as blocked rather than idle. Plan: `docs/m2-plan.md`.
 - **Requests** are single blocks with their inputs on belts at the edge. If a request is ambiguous, Claude asks the user before building.
+- **M2b: red circuits on a generic plant array** (*decided by the user 2026-10-12, after M2*). Plan: `docs/red-circuits-plan.md`.
+  - "Fill a turbo belt of red circuits": 240/s stacked, the same bar and defaults as M2.
+  - Green circuits, plastic and copper plates come in on belts, and the block makes its own copper cable.
+  - The generator is generic: a beaconed array of plants parametrised by recipe, with an optional in-block intermediate (cable) handed over by direct insertion. Red circuits are its first recipe and its done test.
+  - Layout approved by the user 2026-10-12: two mirrored rows around one shared beacon row. Each row has a green|plastic belt, and a copper belt one row further out that the cable plants reach with long-handed inserters. The two output belts merge into one.
 
 ## Nice-to-haves / stretch
 - The harness loads the user's enabled mods, if that isn't too difficult. Vanilla + Space Age is the must.
@@ -112,6 +117,9 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
   - "Fill a turbo belt of green circuits" produces a beaconed, standard-meta, electromagnetic-plant blueprint that passes the harness: at least 98% of 240/s (a stacked turbo belt), no machine blocked on output, with everything researched.
   - The optimiser returns the smallest passing variant.
   - The user's spot-checks of the first few layouts it approves agree with the harness.
+- **M2b:**
+  - `blueprint-smith optimise` on `{"item": "advanced-circuit", "rate": 240}` returns a plant-array blueprint that passes the harness: at least 98% of 240/s, both output lanes full, no machine failing the machine bar, with everything researched.
+  - The user's in-game spot-check of the pick agrees with the harness.
 
 ## Risks
 - **Running the server:** it needs its own write directory, and an unattended run needs a start-run-exit flow.

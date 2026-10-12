@@ -13,7 +13,7 @@ from blueprint_smith.errors import BuildError, SpecError
 from blueprint_smith.evaluate import evaluate
 from blueprint_smith.generators import circuit_block as cb
 from blueprint_smith.harness.verdict import BLOCKED, feeds_only_machines, share
-from blueprint_smith.pipeline import build
+from blueprint_smith.pipeline import LABEL, build
 
 SPEC = {"type": "circuit_block"}
 NORTH = {**SPEC, "copper": "north"}
@@ -28,8 +28,9 @@ def _inserters(bp) -> set[tuple[int, int]]:
 
 
 def _footprint(bp) -> tuple[int, int]:
-    box = bp.get_world_bounding_box()
-    (x1, y1), (x2, y2) = box.top_left, box.bot_right
+    boxes = [e.get_world_bounding_box() for e in bp.entities if e.name != LABEL]
+    x1, y1 = min(b.top_left[0] for b in boxes), min(b.top_left[1] for b in boxes)
+    x2, y2 = max(b.bot_right[0] for b in boxes), max(b.bot_right[1] for b in boxes)
     return math.ceil(x2) - math.floor(x1), math.ceil(y2) - math.floor(y1)
 
 
@@ -44,11 +45,12 @@ def test_the_default_block_builds_clean():
 def test_ports_are_stacked_at_the_west_and_south_edges():
     b = build(SPEC)
     copper, iron, out = b.ports
-    # the blueprint's top-left is (-7, -5): copper (-7, 1), iron (-7, 5), circuits out (5, 5)
+    # the blueprint's top-left is (-7, -5): copper (-7, 1), iron (-7, 5), circuits out (5, 8) at the end of the
+    # output's lane balancer (P4), 3 tiles past the stub's (5, 5)
     assert (copper.item, copper.tile, copper.direction, copper.stack) == ("copper-plate", (0, 6), 4, 4)
     assert (iron.item, iron.tile, iron.direction, iron.stack) == ("iron-plate", (0, 10), 4, 4)
     assert (out.role, out.item, out.tile, out.direction, out.stack, out.rate) == (
-        "output", "electronic-circuit", (12, 10), 8, 4, 240)
+        "output", "electronic-circuit", (12, 13), 8, 4, 240)
     assert iron.rate == pytest.approx(240 / 2.75)  # 1 iron a craft at +175% productivity
     assert copper.rate == pytest.approx(240 / 2.75 * 3 / 2 / 2.75)  # 3 cable a craft, 2 cable a copper craft
 
@@ -65,22 +67,24 @@ def test_the_north_block_builds_clean():
 def test_north_ports_are_stacked_at_the_west_and_south_edges():
     b = build(NORTH)
     copper, iron, out = b.ports
-    # the blueprint's top-left is (-5, -5): copper (-5, -2), iron (-5, 5), circuits out (5, 5)
+    # the blueprint's top-left is (-5, -5): copper (-5, -2), iron (-5, 5), circuits out (5, 8) past the balancer
     assert (copper.item, copper.tile, copper.direction, copper.stack) == ("copper-plate", (0, 3), 4, 4)
     assert (iron.item, iron.tile, iron.direction, iron.stack) == ("iron-plate", (0, 10), 4, 4)
     assert (out.role, out.item, out.tile, out.direction, out.stack, out.rate) == (
-        "output", "electronic-circuit", (10, 10), 8, 4, 240)
+        "output", "electronic-circuit", (10, 13), 8, 4, 240)
     assert [p.rate for p in b.ports] == [p.rate for p in build(SPEC).ports]
 
 
-@pytest.mark.parametrize("copper, size", [("west", (13, 11)), ("north", (11, 11))])
+# the output's lane balancer (P4) adds 3 rows below and a column east of the stub
+@pytest.mark.parametrize("copper, size", [("west", (13 + 1, 11 + 3)), ("north", (11 + 1, 11 + 3))])
 def test_footprint(copper, size):
     assert _footprint(build({**SPEC, "copper": copper}).blueprint) == size
 
 
 def test_north_moves_only_the_copper_feed_and_the_iron_belt_start():
     def layout(spec):
-        return {(e.name, _at(e), int(getattr(e, "direction", 0))) for e in build(spec).blueprint.entities}
+        return {(e.name, _at(e), int(getattr(e, "direction", 0))) for e in build(spec).blueprint.entities
+                if e.name != LABEL}
 
     west, north = layout(SPEC), layout(NORTH)
     E, N, W = int(Direction.EAST), int(Direction.NORTH), int(Direction.WEST)
@@ -363,9 +367,10 @@ def test_the_north_block_fills_a_stacked_turbo_belt(runs):
 
 
 @pytest.mark.harness
-def test_one_stub_inserter_fails_on_the_west_lane(runs):
+def test_one_stub_inserter_fails_short_and_the_balancer_evens_its_lanes(runs):
     ev = runs["one stub inserter"]
     assert not ev.verdict.passed
     (o,) = ev.result.outputs
-    assert o.lane_rates == pytest.approx([120, 80], rel=0.02)
+    # the block fills 120/80 (the stub's west lane short); the output's lane balancer (P4) evens that to 100/100
+    assert o.lane_rates == pytest.approx([100, 100], rel=0.02)
     assert any(p.startswith("output electronic-circuit:") for p in ev.verdict.problems)

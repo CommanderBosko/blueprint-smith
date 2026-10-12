@@ -28,9 +28,10 @@ def test_column_builds_and_round_trips(count):
     assert kinds.count("electric-furnace") == count
     assert kinds.count("fast-inserter") == 2 * count
     modules = math.ceil(count / 2)
-    # per 2-furnace module: 6 ore belt, 5 plate belt (the splitter takes one row), 1 side-load belt
-    assert kinds.count("transport-belt") == 12 * modules
-    assert kinds.count("splitter") == modules
+    # per 2-furnace module: 6 ore belt, 5 plate belt (the splitter takes one row), 1 side-load belt;
+    # the output's lane balancer (P4) adds 6 belts and a splitter
+    assert kinds.count("transport-belt") == 12 * modules + 6
+    assert kinds.count("splitter") == modules + 1
     again = Blueprint.from_string(r.string).to_string()
     assert again == r.string
 
@@ -52,7 +53,7 @@ def test_full_red_belt_of_copper_needs_48_furnaces():
     r = build({"type": "smelting_column", "recipe": "copper-plate", "rate": 30, "belt": "fast-transport-belt"})
     kinds = [e.name for e in r.blueprint.entities]
     assert kinds.count("electric-furnace") == 48
-    assert kinds.count("fast-splitter") == 24
+    assert kinds.count("fast-splitter") == 24 + 1  # one more in the output's lane balancer (P4)
     assert not any("WARNING" in n for n in r.notes)
 
 
@@ -66,8 +67,8 @@ def test_module_layout_balances_lanes():
 
     assert at(1, 1) == at(5, 1) == ["medium-electric-pole"]
     assert at(1, 2) == at(1, 3) == at(5, 2) == at(5, 3) == ["fast-inserter"]
-    (splitter,) = bp.find_entities_filtered(name="splitter")
-    assert tuple(splitter.global_position) == (6.0, 4.5) and splitter.direction == Direction.SOUTH
+    (splitter,) = bp.find_entities_filtered(name="splitter", position=(6.0, 4.5))
+    assert splitter.direction == Direction.SOUTH
     assert splitter.output_priority == "right"  # west output, opposite the inserters' drop lane
     (sideload,) = bp.find_entities_filtered(name="transport-belt", position=(5.5, 5.5))
     assert sideload.direction == Direction.EAST
@@ -78,7 +79,7 @@ def test_odd_count_leaves_last_module_half_empty():
     bp = build({"type": "smelting_column", "count": 3}).blueprint
     assert len(bp.find_entities_filtered(name="electric-furnace")) == 3
     assert not bp.find_entities_filtered(position=(3.5, 10.5))  # where the 4th furnace would sit
-    assert len(bp.find_entities_filtered(name="splitter")) == 2
+    assert len(bp.find_entities_filtered(name="splitter")) == 2 + 1  # and the output's lane balancer (P4)
 
 
 def test_inserters_move_west_to_east():
