@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .server import find_server
@@ -65,6 +65,17 @@ class MachineMeasure:
 
 
 @dataclass(frozen=True)
+class InserterMeasure:
+    name: str
+    position: tuple[float, float]  # entity centre, relative to the blueprint's top-left like a machine's
+    moved: int  # items it let go of during the window (onto a belt, into an entity or the ground)
+    rate: float  # items/s over the window
+    statuses: dict[str, int]  # entity_status name -> ticks
+    quality: str | None = None
+    hand: int | None = None  # inserter_target_pickup_count at the end of the window: hand size with research
+
+
+@dataclass(frozen=True)
 class PowerMeasure:
     harness_linked: bool | None  # the harness power source shares a network with the blueprint; None: not reported
     unpowered_machine_ticks: int
@@ -82,6 +93,7 @@ class HarnessResult:
     wall: dict[str, float]  # seconds per server step: {"create": s, "benchmark": s}
     raw: dict  # the result JSON as written
     run_dir: Path | None = None  # set when the run dir was kept (keep_dir=True)
+    inserters: list[InserterMeasure] = field(default_factory=list)
 
 
 # --- job files ---------------------------------------------------------------------------------------------
@@ -161,14 +173,34 @@ def port_table(port) -> dict:
     return t
 
 
+@dataclass(frozen=True)
+class Probe:
+    """Script help for one machine of a measurement blueprint, so the link under test is its only bottleneck.
+    `tile` is any tile the machine covers, relative to the blueprint's top-left like a port's. Every tick the mod
+    tops up each `feed` item in its input to a full stack, and `drain` empties its output."""
+
+    tile: tuple[int, int]
+    feed: tuple[str, ...] = ()
+    drain: bool = False
+
+
+def probe_table(probe: Probe) -> dict:
+    x, y = probe.tile
+    if isinstance(probe.feed, str) or not all(isinstance(i, str) for i in probe.feed):
+        raise ValueError(f"probe at {tuple(probe.tile)}: feed must be a sequence of item names, got {probe.feed!r}")
+    return {"tile": [x, y], "feed": list(probe.feed), "drain": bool(probe.drain)}
+
+
 RESEARCH = ("none", "all")  # "none": base stats, as ratios.py assumes; "all": every technology (productivity too)
 
 
-def job_lua(blueprint: str, ports, *, warmup_ticks: int, window_ticks: int, research: str = "none") -> str:
+def job_lua(blueprint: str, ports, *, warmup_ticks: int, window_ticks: int, research: str = "none",
+            probes=()) -> str:
     if research not in RESEARCH:
         raise ValueError(f"research must be one of {RESEARCH}, got {research!r}")
     fields = {"blueprint": blueprint, "ports": [port_table(p) for p in ports],
-              "warmup_ticks": warmup_ticks, "window_ticks": window_ticks, "research": research}
+              "warmup_ticks": warmup_ticks, "window_ticks": window_ticks, "research": research,
+              "probes": [probe_table(p) for p in probes]}
     return "return {\n" + "".join(f"  {k} = {lua_value(v)},\n" for k, v in fields.items()) + "}\n"
 
 
@@ -222,16 +254,17 @@ def _step(name: str, cmd: list[str], run_dir: Path, deadline: float) -> tuple[fl
 
 
 def run(blueprint: str, ports, *, warmup_ticks: int, window_ticks: int = 3600, research: str = "none",
-        server: Path | None = None, tmp_root: Path | None = None, keep_dir: bool = False,
+        probes=(), server: Path | None = None, tmp_root: Path | None = None, keep_dir: bool = False,
         timeout: float = 300) -> HarnessResult:
     """Paste `blueprint` on a lab surface, feed its input ports and sink its output ports, run warmup then a
-    measured window, and return the measurements. `timeout` covers both server steps. Raises HarnessUnavailable
-    without a 2.0.77 server and HarnessError when a run fails (its dir is then kept and named in the message)."""
+    measured window, and return the measurements. `probes` script-feed or drain chosen machines (measurements
+    only). `timeout` covers both server steps. Raises HarnessUnavailable without a 2.0.77 server and HarnessError
+    when a run fails (its dir is then kept and named in the message)."""
     if warmup_ticks < 0 or window_ticks <= 0:
         raise ValueError(f"need warmup_ticks >= 0 and window_ticks > 0, got {warmup_ticks} and {window_ticks}")
     binary = find_server(server)
     job = job_lua(blueprint, ports, warmup_ticks=warmup_ticks, window_ticks=window_ticks,
-                  research=research)  # bad ports fail here
+                  research=research, probes=probes)  # bad ports and probes fail here
     if tmp_root is not None:
         Path(tmp_root).mkdir(parents=True, exist_ok=True)
     run_dir = Path(tempfile.mkdtemp(prefix="bps-harness-", dir=tmp_root))
@@ -368,6 +401,16 @@ def _parse(data, ports, warmup_ticks, window_ticks, wall, run_dir) -> HarnessRes
             quality=m.get("quality"), crafting_speed=_float(m.get("crafting_speed")),
             productivity=_float(m.get("productivity"))))
 
+    inserters = []
+    for i in _list(data.get("inserters")):
+        i = _dict(i)
+        moved = int(i.get("moved", 0))
+        inserters.append(InserterMeasure(
+            name=str(i["name"]), position=_position(i["position"]), moved=moved,
+            rate=moved * 60 / ticks["window"] if ticks["window"] > 0 else 0.0,
+            statuses={str(k): int(v) for k, v in _dict(i.get("statuses")).items()},
+            quality=i.get("quality"), hand=None if i.get("hand") is None else int(i["hand"])))
+
     p = _dict(data.get("power"))
     linked = p.get("harness_linked")
     others = p.get("other_networks", 0)
@@ -378,4 +421,4 @@ def _parse(data, ports, warmup_ticks, window_ticks, wall, run_dir) -> HarnessRes
 
     series = [float(x) for x in _list(data.get("series", data.get("series_per_s")))]
     return HarnessResult(build=build, ticks=ticks, outputs=outputs, machines=machines, power=power, series=series,
-                         wall=dict(wall), raw=data, run_dir=run_dir)
+                         wall=dict(wall), raw=data, run_dir=run_dir, inserters=inserters)
