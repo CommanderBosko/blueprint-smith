@@ -44,13 +44,13 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 
 | # | Fact | Status |
 |---|---|---|
-| F1 | **Inserters drop onto the far lane** of a belt. | Confirmed in-game 2026-10-11 (copper 15/s: every plate on one lane); again in the circuit block, 2026-10-12 (the east inserters fill the east lane) |
+| F1 | **Inserters drop onto the far lane** of a belt. | Confirmed in-game 2026-10-11 (copper 15/s: every plate on one lane); again in the circuit block, 2026-10-12 (the east inserters fill the east lane); again in the optimiser's circuit block (north copper), 2026-10-12 (east lane full) |
 | F2 | **Inserters pick up from both lanes.** | Confirmed in-game 2026-10-11 (steel 3/s drained a full yellow belt of iron plates, on both the old and lane-balanced layouts) |
-| F3 | **Side-loading:** a belt feeding into the side of another puts everything onto the receiving belt's near lane. | Confirmed in-game 2026-10-11 (T1: copper 30/s, iron 15/s, steel 3/s); again in the circuit block, 2026-10-12 (T5: the stub fills the west lane) |
+| F3 | **Side-loading:** a belt feeding into the side of another puts everything onto the receiving belt's near lane. | Confirmed in-game 2026-10-11 (T1: copper 30/s, iron 15/s, steel 3/s); again in the circuit block, 2026-10-12 (T5: the stub fills the west lane); again in the optimiser's circuit block (north copper), 2026-10-12 (west lane full from the shortened stub) |
 | F4 | **Splitters keep lanes:** an item leaves on the same lane it entered. | Game rule, relied on by T1; not tested separately |
 | F5 | **Splitter `output_priority` "left"/"right" is relative to the splitter's facing.** Facing south, `"right"` is the west output. | Confirmed in-game 2026-10-11 (priority arrows on the west half) |
 | F6 | **A pasted blueprint keeps only the wires it carries.** Poles inside it don't auto-connect, even within reach. | Confirmed in-game 2026-10-11 (11 of 12 poles dead before the pipeline added wires) |
-| F7 | An inserter's blueprint `direction` is the side it **picks up from**. | Prototype data; every in-game test so far flowed correctly |
+| F7 | An inserter's blueprint `direction` is the side it **picks up from**. | Prototype data; every in-game test so far flowed correctly (pick-up sides west and south). North first used by the circuit block's north copper inserter (T6): headless 2.0.77 2026-10-12; confirmed in-game 2026-10-12 (the north-picking copper inserter fed the cable plant from the belt above it) |
 | F8 | Directions: N=0, NE=2, E=4, S=8, W=12. | Prototype data |
 | F9 | Underground belt `max_distance` is 5/7/9/11 tiles for yellow/red/blue/turbo, from entrance to exit (total span, not the gap). | Prototype data; headless 2.0.77, 2026-10-11 (yellow pairs at 5 not 6, turbo at 11 not 12) |
 | F10 | Medium electric pole: 7x7 supply area, wire reach 9. The supply area spans `supply_area_distance` either side of the pole's **centre**, not its edge (small 5x5, medium 7x7, big 4x4, substation 18x18). | Prototype data; poles 6 rows apart confirmed in-game 2026-10-11. `power_coverage` measured from the edge until 2026-10-11, found by the steel column's mutation test |
@@ -71,7 +71,7 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 | F25 | **Module limits:** only a module's **bonuses** must be allowed, by the entity's `allowed_effects` and by the recipe's `allow_*` flags (productivity defaults to off). Beacons allow consumption, speed and pollution, so speed and efficiency modules go in and productivity and quality don't. Setting a recipe that refuses productivity ejects prod modules. | Headless 2.0.77, 2026-10-11 (`can_insert`). Enforced by `module_validity` |
 | F26 | **Underground pairing:** an underground pairs with the first same-tier underground on its line. Other tiers and perpendicular ones are passed under; a same-tier entrance, or either kind facing back, blocks the pair. Ambiguous ghosts can flip type when revived. | Headless 2.0.77, 2026-10-11 (`neighbours`). Enforced by `underground_pairing` |
 | F27 | **Hidden entities** can't be built in survival. 2.0.77 hides them through their **item's** `hidden`: the loaders (turbo included), loader-1x1, the infinity, linked and bottomless chests, the energy interfaces, and the space-platform hub. | Prototype data; matched `LuaEntityPrototype.hidden` headless 2.0.77, 2026-10-11. Enforced by `hidden_entities` |
-| F28 | **Legendary stack inserter rates** with everything researched (hand 16, belt stack 4): **87.47/s** from a full stacked turbo belt into a machine, **120/s** machine to machine (inserters add up: 2 move 240, 3 move 360), **80/s** onto an empty stacked turbo lane. It drops onto the far lane only (F1), and the lane caps at 120/s, so a second inserter on that lane adds 40/s and a third adds nothing: filling both lanes (240/s) takes 2 inserters per lane, one set on each side of the belt. | Headless 2.0.77, 2026-10-12 (micro-blueprints with script-fed and drained machines, so the inserter is the only bottleneck; repeats exactly). In-game, the circuit block, 2026-10-12: 2 inserters per lane filled both lanes, as sized from these rates. Code: `effects.LEGENDARY_STACK_INSERTER`; enforced by `tests/test_harness_primitives.py` |
+| F28 | **Legendary stack inserter rates** with everything researched (hand 16, belt stack 4): **87.47/s** from a full stacked turbo belt into a machine, **120/s** machine to machine (inserters add up: 2 move 240, 3 move 360), **80/s** onto an empty stacked turbo lane. It drops onto the far lane only (F1), and the lane caps at 120/s, so a second inserter on that lane adds 40/s and a third adds nothing: filling both lanes (240/s) takes 2 inserters per lane, one set on each side of the belt. | Headless 2.0.77, 2026-10-12 (micro-blueprints with script-fed and drained machines, so the inserter is the only bottleneck; repeats exactly). In-game, the circuit block, 2026-10-12: 2 inserters per lane filled both lanes, as sized from these rates. Again in the optimiser's pick, 2026-10-12: **one** iron inserter (87.47/s against 87.27/s needed, 0.2% spare) kept the circuit plant fed at 240/s, as the harness predicted. Code: `effects.LEGENDARY_STACK_INSERTER`; enforced by `tests/test_harness_primitives.py` |
 
 ## Techniques
 
@@ -160,8 +160,8 @@ col 0 ore belt, col 10 steel belt, both south.   I inserter (moves west to east)
 ```
      x  0  1  2  3  4  5
 y -3    .  .  .  .  .  v      the output belt starts above the stub, so (5,-2) is straight
-y -2    >  >  >  >  >  v      stub: flows east into the output belt's side
-y -1    ^  ^  .  .  .  v      2 inserters fill the stub
+y -2    .  .  >  >  >  v      stub: flows east into the output belt's side, from under its first inserter
+y -1    .  .  ^  ^  .  v      2 inserters fill the stub, at the plant's east end
 y  0    C  C  C  C  >  v      2 inserters fill the east (far) lane
 y  1    C  C  C  C  >  v
 ```
@@ -171,10 +171,35 @@ y  1    C  C  C  C  >  v
 **Gotchas:**
 - **The output belt must run straight past the side-load tile.** Without the belt above it, the stub turns into the output belt instead of side-loading, and keeps its lane, which is the east one. `check_flow` requires that belt.
 - The machine is over-capacity against a full belt (250/s against 240/s), so it's blocked on output a few percent of the time (1.8% measured), under the 5% bar.
+- **Keep the stub short: put its inserters at the end of the machine's edge nearest the output belt, and start the stub under the first one.** Stub belt upstream of the first inserter carries nothing. With 2 inserters at x=2–3, the stub is 3 tiles instead of 5. *Taught by the user 2026-10-12, with an in-game screenshot of their tweak of the optimiser's pick: "save 2 green belts".*
 
-**Status:** **confirmed in-game 2026-10-12** (the default circuit block, legendary: both output lanes full, the stub side-loading onto the west lane; the user: "It works perfectly"). Headless 2.0.77 agrees: lanes 120.00/120.00, and with 1 stub inserter they read 120/80. Layout approved by the user 2026-10-12.
+**Status:** **confirmed in-game 2026-10-12** (the default circuit block, legendary: both output lanes full, the stub side-loading onto the west lane; the user: "It works perfectly"). Headless 2.0.77 agrees: lanes 120.00/120.00, and with 1 stub inserter they read 120/80. Layout approved by the user 2026-10-12. The north layout (T6) keeps the stub unchanged: lanes 120.00/120.00 headless, 2026-10-12. **The short stub** (inserters at x=2–3, stub x=2–4): confirmed in-game 2026-10-12 in the user's own tweak (their screenshot: both output lanes full), and headless 2.0.77 agrees (lanes 120/120 for west and north).
 
-**Code:** `generators/circuit_block.py`. **Enforced by:** its `check_flow` (a stub inserter, straight output belt past the stub, belt directions). Tests: `test_broken_layout_is_rejected` and `test_one_stub_inserter_fails_on_the_west_lane` in `tests/test_circuit_block.py`.
+**Code:** `generators/circuit_block.py` (`CIRCUIT_EAST`, `stub_from`). **Enforced by:** its `check_flow`: a stub inserter, the output belt running straight past the stub, belt directions, no stub belt west of the first stub inserter, and no gap in the stub. Tests: `test_broken_layout_is_rejected` (the stub run back to x=0, a missing stub tile), `test_stub_starts_under_its_first_inserter` and `test_one_stub_inserter_fails_on_the_west_lane` in `tests/test_circuit_block.py`.
+
+### T6. Copper from the north (compact circuit block)
+**Solves:** the west-fed circuit block spends 2 columns on its copper belt and inserter, beside the cable plant. That makes the block 13×11 when nothing else needs those columns.
+
+**Layout** (`copper: "north"`; otherwise identical to the west layout, coordinates as in `generators/circuit_block.py`):
+
+```
+     x -5 -4 -3 -2 -1  0
+y -2    Cu  S  S  .  .  .     a one-tile copper belt flows east; its front is the substation
+y -1     v  S  S  .  .  .     the copper inserter picks up from the north (F7)
+y  0     K  K  K  K  >  C
+...
+y  5    Fe  >  >  >  >  >     the iron belt now starts at x=-5
+```
+
+**Why it works:** the beacons need 2 rows of gap above the plants anyway (F24), and the substation uses only 2 of the 4 tiles in those rows above the cable plant. The copper belt and inserter take the gap column at x=-5, so the block loses 2 columns: 11×11 = 121 tiles against 143. At 240/s the machines and beacons can't shrink (1 beacon caps the circuit plant at 179/s), so input routing is the only footprint lever.
+
+**Gotchas:**
+- The copper belt sits on the stub's row (y=-2). `check_flow` resolves the copper role before the stub role, and the stub is only x 0–4.
+- There must be exactly one copper belt (west or north). `check_flow` checks that.
+
+**Status:** layout approved by the user 2026-10-12. Headless 2.0.77, 2026-10-12: 239.74/s crafted, lanes 120.00/120.00, circuit plant blocked 1.8%. `blueprint-smith optimise` picks it for 240/s. **Confirmed in-game 2026-10-12** (the optimiser's pick, with 1 iron inserter: "It worked well"; the user's screenshot shows both output lanes full and the copper inserter feeding the cable plant from the north).
+
+**Code:** `generators/circuit_block.py` (`COPPER_BELTS`, `COPPER_INSERTERS`, `IRON_FROMS`). **Enforced by:** `check_flow` (exactly one copper belt, and copper → cable plant). Tests: `test_broken_north_layout_is_rejected` and the north footprint and harness tests in `tests/test_circuit_block.py`.
 
 ### H1. Headless evaluation harness
 **Solves:** trusting a blueprint without the user importing it (v2 milestone 1, `PROJECT_BRIEF.md`).
@@ -201,6 +226,7 @@ y  1    C  C  C  C  >  v
 - **Pre-T1 steel disagrees with the game** (see open questions).
 - About 6 s per run, and runs work in parallel.
 - **First assembler-type calibration point, 2026-10-12:** the harness passed the default circuit block (239.71/s, lanes 120/120), and it ran with both lanes full in the user's game. Until then every in-game confirmation was a furnace column.
+- **The optimiser's first pick agreed with the game, 2026-10-12:** the harness passed the north block with one iron inserter at 0.2% spare (240.01/s, lanes 120/120), a variant the static 98% margin warns about, and it ran well in the user's game.
 - Stacked feed, 2026-10-11: a turbo belt fed at stack 4 delivers 240.00/s, 120/120 per lane, with or without research. Stack 1 through the loader gives 60/s. A legendary EM plant with 5 legendary prod-3 and 1 legendary beacon reads speed 32.5 and productivity +175%, as `effects.py` predicts.
 
 **Code:** `src/blueprint_smith/harness/` (`mod/control.lua`, `runner.py`, `verdict.py`, `server.py`), `evaluate.py` (timing). Plan and spike notes: `docs/m1-harness-plan.md`.
