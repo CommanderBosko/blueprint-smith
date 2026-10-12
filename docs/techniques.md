@@ -35,11 +35,10 @@ Both output lanes should fill, the full input belt should be eaten, and no machi
 - **Amended for v2, in effect since 2026-10-11 (H1):** a headless harness run (`blueprint-smith evaluate`, `build --evaluate`) is a hard pass/fail. Builds checked only statically keep the `WARNING:` notes. A run fails if:
   - the crafted output is below 98% of the target (the sink rate when no machine makes the item);
   - any machine is blocked on output (`full_output`, `waiting_for_space_in_destination`, `full_burnt_result_output`) for more than 5% of the window;
-  - any machine is unpowered (`no_power`, `low_power`) for more than 5% of the window;
   - any machine's output backs up (more than 3 items gained);
   - or less than 80% of the crafted output reaches the output port.
 
-  Idle time isn't failed: beacons come in whole steps, so an honest design runs some machines under capacity. Each machine kind's utilisation (min and mean share working) is reported instead, and the output bar catches a starved line. *The M2 machine bar was decided by the user and implemented 2026-10-11. It replaced "every machine working at least 95%".*
+  Idle time isn't failed: beacons come in whole steps, so an honest design runs some machines under capacity. Each machine kind's utilisation (min and mean share working) is reported instead, and the output bar catches a starved line. Unpowered time isn't judged either, only reported: power is never short in the user's save (user, 2026-10-12). *The M2 machine bar was decided by the user and implemented 2026-10-11. It replaced "every machine working at least 95%".*
 
 ## Game mechanics
 

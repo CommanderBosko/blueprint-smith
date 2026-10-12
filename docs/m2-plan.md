@@ -93,12 +93,12 @@ A, C and D start now in parallel. B follows A. E follows C and D. F is last.
 
 ## Progress
 
-**A, C and D, 2026-10-11** (built in parallel; 376 tests pass, 1 strict xfail):
+**A, C and D, 2026-10-11** (built in parallel; 375 tests pass, 1 strict xfail):
 - **A (harness):**
   - `Port.stack` (1–4) is validated in the pipeline and the mod.
   - Stacked inputs are fed by script (F17): a turbo belt delivers 240.00/s, 120/120 per lane.
   - The loader sink keeps up at 240/s, so `stack` on an output port is informational.
-  - The machine bar is implemented: blocked on output or unpowered for more than 5% fails, and idle time is reported as utilisation (P2).
+  - The machine bar is implemented: blocked on output for more than 5% fails, and idle time is reported as utilisation (P2). Unpowered time isn't judged, because power is never short in the user's save (user, 2026-10-12).
   - Results now carry each machine's quality, crafting speed and productivity, plus the research bonuses.
 - **C (solver):**
   - `effects.py` covers quality, modules, beacons, research, power and demand.

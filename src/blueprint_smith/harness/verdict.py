@@ -1,9 +1,10 @@
 """HarnessResult -> pass/fail: the build completed, every output meets its target, no machine was blocked on
-output or unpowered, and the harness power reached the blueprint. Thresholds are inclusive.
+output, and the harness power reached the blueprint. Thresholds are inclusive.
 
 Idle time ("no ingredients") doesn't fail a machine: beacons come in whole steps, so an honest design runs some
 machines under capacity. The output bar catches a starved line, and each machine's share working is reported as
-utilisation instead of judged (docs/m2-plan.md, "Decided: the machine bar")."""
+utilisation instead of judged (docs/m2-plan.md, "Decided: the machine bar"). Unpowered time isn't judged either:
+power is never short in the user's save, so it's only reported."""
 from dataclasses import dataclass
 
 from .runner import HarnessResult, MachineMeasure, OutputMeasure
@@ -12,7 +13,6 @@ WORKING = ("working", "normal")
 # Stopped because its results have nowhere to go (2.0.77 defines.entity_status): result slots full; a machine that
 # places its results itself (vector_to_place_result) waiting for room; a burner's burnt-result slot full.
 BLOCKED = ("full_output", "waiting_for_space_in_destination", "full_burnt_result_output")
-UNPOWERED = ("no_power", "low_power")
 EPS = 1e-9  # absorbs float noise such as 0.98 * 15, so exactly-at-threshold passes
 # The sink count aliases with crafts finishing in step (+-1 craft per machine over the window), so the output
 # bar uses the crafted rate; the sink only has to show the items actually arrive.
@@ -79,8 +79,7 @@ def judged_rate(o: OutputMeasure) -> float:
     return o.rate if o.produced_rate is None else o.produced_rate
 
 
-def judge(result: HarnessResult, *, rate_min: float = 0.98, blocked_max: float = 0.05,
-          unpowered_max: float = 0.05) -> Verdict:
+def judge(result: HarnessResult, *, rate_min: float = 0.98, blocked_max: float = 0.05) -> Verdict:
     problems = []
     b = result.build
     problems += [f"build error: {e}" for e in b.errors]
@@ -109,12 +108,10 @@ def judge(result: HarnessResult, *, rate_min: float = 0.98, blocked_max: float =
         if m.output_growth > GROWTH_MAX:
             problems.append(f"{_where(m)}: output backing up, {m.output_growth} more items waiting in it than when "
                             f"the window opened")
-        for what, statuses, limit in (("blocked on output", BLOCKED, blocked_max),
-                                      ("unpowered", UNPOWERED, unpowered_max)):
-            x = share(m, statuses, window)
-            if x > limit + EPS:
-                problems.append(f"{_where(m)}: {what} {x:.1%} of the window (needs <= {_pct(limit)}), mostly "
-                                f"{_most(m, statuses)}")
+        x = share(m, BLOCKED, window)
+        if x > blocked_max + EPS:
+            problems.append(f"{_where(m)}: blocked on output {x:.1%} of the window (needs <= {_pct(blocked_max)}), "
+                            f"mostly {_most(m, BLOCKED)}")
 
     if result.power.harness_linked is False:
         problems.append("power: the harness power source isn't on the blueprint's electric network")

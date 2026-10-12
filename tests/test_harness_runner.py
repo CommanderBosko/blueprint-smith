@@ -324,19 +324,16 @@ def test_every_blocked_status_counts_together():
         "waiting_for_space_in_destination"]
 
 
-@pytest.mark.parametrize("statuses, passed", [
-    ({"working": 3240, "no_power": 360}, False),  # 10%
-    ({"working": 3420, "no_power": 180}, True),  # exactly 5%
-    ({"working": 3400, "no_power": 100, "low_power": 100}, False),
-    ({"no_power": 3600}, False),
+@pytest.mark.parametrize("statuses", [
+    {"working": 3240, "no_power": 360},
+    {"working": 3400, "no_power": 100, "low_power": 100},
+    {"no_power": 3600},
+    {"low_power": 3600},
 ])
-def test_an_unpowered_machine_fails(statuses, passed):
+def test_unpowered_time_is_not_judged(statuses):
+    """Power is never short in the user's save (user, 2026-10-12): only the output bar sees an unpowered line."""
     v = judge(with_machines(machine(statuses)))
-    assert v.passed is passed
-    if not passed:
-        x = (statuses.get("no_power", 0) + statuses.get("low_power", 0)) / 3600
-        assert v.problems == [f"electric-furnace at (3.5, 1.5): unpowered {x:.1%} of the window (needs <= 5%), "
-                              f"mostly no_power"]
+    assert v.passed, v.problems
 
 
 def test_output_under_98_percent_fails_even_when_every_machine_passes():
@@ -378,8 +375,6 @@ def test_custom_thresholds():
     assert judge(make_result(rate=14.0), rate_min=0.9).passed
     blocked = with_machines(machine({"working": 3492, "full_output": 108}))  # 3%
     assert judge(blocked).passed and not judge(blocked, blocked_max=0.02).passed
-    unpowered = with_machines(machine({"working": 3492, "no_power": 108}))
-    assert judge(unpowered).passed and not judge(unpowered, unpowered_max=0.02).passed
 
 
 def test_build_and_power_problems():
@@ -393,12 +388,6 @@ def test_build_and_power_problems():
     ]
     assert "power: harness NOT linked, 360 unpowered machine-ticks, 1 other network(s)" in v.summary
     assert judge(make_result(power=PowerMeasure(None, 0, 0))).passed  # unreported link isn't a failure by itself
-
-
-def test_unpowered_machine_names_its_status():
-    v = judge(make_result(working=0.0, statuses={"low_power": 3600}))
-    assert v.problems == ["electric-furnace at (3.5, 1.5): unpowered 100.0% of the window (needs <= 5%), "
-                          "mostly low_power"]
 
 
 def test_shares_fall_back_on_the_tallied_ticks_when_the_window_is_unknown():
