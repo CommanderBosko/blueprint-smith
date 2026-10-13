@@ -80,6 +80,7 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
 - CI (`.github/workflows/ci.yml`) runs on every push to `main` and every PR:
   - `lint` and `quick` (`pytest -m "not harness"`) run on GitHub-hosted runners.
   - `harness` runs the full suite on a self-hosted runner labelled `factorio` (the user's NixOS machine), because factorio.com answers 403 to the server download from GitHub's runners (2026-10-12). It never runs for a fork's PR.
+  - The runner is defined in `~/NixOS/hosts/gaming/github-runner.nix`. Jobs run as a sandboxed dynamic user with no access to `/home`, apart from the server dir mounted read-only. They get the server through `$BPS_FACTORIO_SERVER`, so tests must never find game files through `Path.home()`.
   - `harness` sets `BPS_REQUIRE_HARNESS=1`. With that set, `tests/conftest.py` fails any skipped test, so a missing server can't turn the harness tests into silent skips. Set it locally to check the same thing.
 
 ## Code architecture (`src/blueprint_smith/`)

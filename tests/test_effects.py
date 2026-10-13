@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from draftsman.entity import new_entity
 from blueprint_smith import effects, ratios
 from blueprint_smith.effects import Beacon, Module
 from blueprint_smith.errors import SpecError
+from blueprint_smith.harness import server
 
 L = "legendary"
 EM = "electromagnetic-plant"
@@ -186,8 +188,10 @@ def test_unknown_names_raise_spec_errors():
 
 
 def _lua_data_dir():
-    for d in (Path.home() / ".local/share/Steam/steamapps/common/Factorio/data",
-              Path.home() / ".cache/blueprint-smith/factorio-headless-2.0.77/factorio/data"):
+    # the headless server's data sits beside its binary (factorio/bin/x64/factorio), wherever $BPS_FACTORIO_SERVER
+    # puts it: CI's runner has no home directory to find the cache in
+    headless = Path(os.environ.get(server.ENV_VAR) or server.DEFAULT_SERVER).parents[2] / "data"
+    for d in (Path.home() / ".local/share/Steam/steamapps/common/Factorio/data", headless):
         if (d / "space-age/prototypes/technology.lua").is_file():
             return d
     pytest.skip("Factorio Lua data isn't installed")
