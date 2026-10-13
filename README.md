@@ -4,7 +4,13 @@ Generates importable Factorio 2.0 + Space Age blueprint strings from JSON specs.
 
 ## Current Status
 
-Three generators work in-game: `smelting_column` (all 3 samples confirmed), `steel_column` (1 of 3) and `circuit_block` (240 green circuits/s on a stacked turbo belt, confirmed). The headless harness agrees with every in-game result except one old layout. Milestone 2 has its solver, checks, measured inserter rates, generator and optimiser built: `blueprint-smith optimise` turns "240 green circuits/s" into an 11×11 block that passes the harness, waiting on an in-game spot-check. See `docs/m2-plan.md`, `project-state.md` for detail and `session-summary.md` for history.
+Four generators work in-game:
+- `smelting_column`: all 3 samples confirmed.
+- `steel_column`: 1 of 3 samples.
+- `circuit_block`: 240 green circuits/s.
+- `plant_array`: 240.5 red circuits/s.
+
+`blueprint-smith optimise` turns a request like "240 green circuits/s" or "240 red circuits/s" into the smallest blueprint that passes the headless harness. CI lints and runs the full suite, harness included, on every push and PR. The next milestone is generalising `plant_array` to other machines and intermediates. For detail, see `project-state.md`; for history, `session-summary.md`.
 
 ## Features
 
@@ -13,6 +19,8 @@ Three generators work in-game: `smelting_column` (all 3 samples confirmed), `ste
   - `smelting_column`: electric furnaces with lane balancing, so both output lanes fill
   - `steel_column`: ore to steel, with iron furnaces feeding steel furnaces by direct insertion
   - `circuit_block`: green circuits from legendary electromagnetic plants. A cable plant feeds a circuit plant by direct insertion under shared beacons, filling both lanes of a stacked turbo belt (240/s). Copper comes in from the west (13×11) or the north (11×11).
+  - `plant_array`: a beaconed array of product plants in two mirrored rows. Each is fed by direct insertion from an intermediate plant beside it. Built for red circuits (240/s on a stacked turbo belt).
+- Every blueprint gets a display panel showing each input's item, and a lane balancer after each belt output
 - Solver (`effects.py`): quality, modules, beacons, research, power and demand, matching Factorio 2.0.77's rounding
 - Every draftsman warning (overlap, unknown entity) fails the build
 - Static checks:
@@ -60,6 +68,11 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
 
 ## Recent Changes
 
+- **2026-10-12 (evening):**
+  - The optimiser: `blueprint-smith optimise` (PR #7).
+  - Red circuits on the generic `plant_array`, confirmed in-game at 240.5/s (PR #9).
+  - Input display panels and output lane balancers on every blueprint (PR #9).
+  - CI: lint, quick tests, and the full harness suite on a self-hosted runner, plus golden snapshots of every in-game-confirmed layout (PR #10).
 - **2026-10-12:**
   - Milestone 2 pieces A–E, merged to `main` (PRs #2–#4).
   - Stacked-belt harness and the new machine bar.
@@ -72,13 +85,14 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
   - Headless evaluation harness (v2 milestone 1).
   - Plan for milestone 2.
   - Spec validation fixes and a pole-reach fix.
-- **2026-10-11** — First in-game test passed after a fix: the pipeline now wires power poles together, and a new `pole_network` check fails any unwired pole.
 
 ## Roadmap
 
 v2 is a blueprint optimizer. You ask for something like "fill a turbo belt of green circuits", and it chooses machines, modules and beacons, lays out the block, and verifies it headlessly without an in-game test.
 - Milestone 1, the harness, is done.
-- Milestone 2: the solver, checks, measured primitives, green-circuit generator and optimiser (`blueprint-smith optimise`) are built. Only the in-game spot-check of the optimiser's pick is left.
+- Milestone 2, the solver, checks, measured primitives, green-circuit block and optimiser (`blueprint-smith optimise`), is done. The optimiser's pick worked in-game.
+- Milestone 2b, red circuits on a generic plant array, is done and confirmed in-game.
+- Next: generalise the plant array to any machine and any in-block intermediate.
 - Learning from existing blueprints and freeform placement are stretch goals.
 - Logistics and power & fluids generators are paused.
 

@@ -1,3 +1,34 @@
+## Session: 2026-10-12 (close) — Optimiser, red circuit plant array, CI; next milestone picked
+
+**Focus**: Catch the docs up to `main`. Several sessions since the last close were never closed, and the closing session itself changed no code.
+
+### What changed (and why)
+- **The optimiser (PR #7):** `blueprint-smith optimise` returns the smallest variant that passes the harness. For 240 green circuits/s it picks the compact 11×11 `copper: "north"` block, and that pick worked in-game.
+- **Growth exemption (PR #8):** a machine that feeds only other machines can't jam anything, so it's no longer judged on output growth. Before, the check falsely failed 2 of 8 good variants.
+- **M2b, red circuits (PR #9):** the generic `plant_array` hit 240.5/s in-game with both lanes full. It includes the user's three resource cuts and their mid-row lane reset (T12). Every blueprint now gets input display panels (P3) and an output lane balancer (P4).
+- **CI (PR #10):** three jobs run on every push to `main` and every PR:
+  - lint and the quick tests on GitHub's runners;
+  - the full suite on a self-hosted runner, the user's gaming machine, because factorio.com refuses the server download from GitHub's runners.
+  - Golden snapshots pin every in-game-confirmed layout. A skipped harness test fails the run.
+
+### Decisions
+- Runner jobs run as a sandboxed throwaway user that sees only a read-only server dir. A fork's PR can rewrite `ci.yml`, so an `if:` guard alone wouldn't keep it from running as the user. Fork PRs also need the user's approval.
+- 1 output inserter a red plant is the default. With the lane reset it's enough in-game, and the growth bar now allows for the size of the inserter's hand.
+- Next milestone (user): generalise `plant_array` to any machine and any in-block intermediate.
+
+### Issues / surprises
+- With HOME moved on the runner, the Lua-data test would have skipped, and the skip guard would then fail the run. It now finds the data beside `$BPS_FACTORIO_SERVER`.
+- The scoping interview for the next milestone was paused before its first question wave.
+- Secret scan (project `/secret-scan`): clean across the tree and all 36 commits.
+
+### Next session
+- Resume the `plant_array` interview at wave 1.
+- With the user's OK, fix `CLAUDE.md`'s stale Status line ("commit and PR `v2-red-circuits`").
+
+**Commits**: `e3383b3..6f24bcf` (21 commits, PRs #2–#10)
+
+---
+
 ## Session: 2026-10-12 — M2 pieces A–E: harness, solver, checks, measured rates, circuit block
 
 **Focus**: Build M2 up to the green circuit block, piece by piece: A, C and D in parallel, then B, then E.

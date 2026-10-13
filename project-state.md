@@ -2,7 +2,25 @@
 
 ## Current Project State
 
-**2026-10-12 (latest): M2b is done on branch `v2-red-circuits` (uncommitted). `blueprint-smith optimise` turns "fill a turbo belt of red circuits" into a two-row plant array that passes the harness and ran at 240/s in the user's game.**
+_Older blocks are in [project-state-archive.md](project-state-archive.md)._
+
+**2026-10-12 (close): M2, M2b and CI are all merged to `main` (`6f24bcf`), and CI is green. The user picked the next milestone, generalising `plant_array`, but paused its scoping interview before the first question.**
+- **Merged since the last close** (all with merge commits; only `main` is left, locally and on GitHub):
+  - #6: the project's `/ingame-test` skill, plus a tighter `/secret-scan`.
+  - #7: piece F, the optimiser.
+  - #8: the output-growth exemption for machines that feed only machines.
+  - #9: M2b, the red circuit plant array, input labels and output balancers.
+  - #10: CI.
+- **CI (`.github/workflows/ci.yml`)** runs on every push to `main` and every PR. The first run on `main` passed all three jobs:
+  - `lint` (ruff, errors only) and `quick` (`-m "not harness"`) run on GitHub's runners.
+  - `harness` runs the full suite on the self-hosted runner `factorio`, on the user's gaming machine: 644 passed, 1 xfailed.
+- **The runner** is defined in `~/NixOS/hosts/gaming/github-runner.nix`, committed there as `3f3cf9e`. Jobs run as a sandboxed dynamic user with no `/home`, apart from the server dir mounted read-only, and they find the server through `$BPS_FACTORIO_SERVER`. `BPS_REQUIRE_HARNESS=1` fails any skipped test.
+  - A PR from a fork waits for the user's approval before any workflow runs, for anyone without write access (`all_external_contributors`).
+- **Golden snapshots (`tests/test_confirmed.py`):** 7 fixtures pin every in-game-confirmed layout entity for entity, wires included. They run in about 3 s with no harness. To re-pin: `BPS_UPDATE_SNAPSHOTS=1`.
+- **Next milestone (user, 2026-10-12):** make `plant_array` take any machine and any in-block intermediate. Today it only handles electromagnetic plants with copper cable. Nothing is settled yet: the why, the done-test recipe, the rate, and whether the red block must stay identical. The facts gathered for the interview are in memory (`project_next-milestone-plant-array.md`).
+- **Tests:** 644 pass and 1 is a strict xfail (`.venv/bin/pytest -q`).
+
+**2026-10-12 (latest): M2b is done (merged as PR #9). `blueprint-smith optimise` turns "fill a turbo belt of red circuits" into a two-row plant array that passes the harness and ran at 240/s in the user's game.**
 - **In-game spot-check (2026-10-12):** "It shows 240.5/s with both lanes full. The balancer works. The display panels are placed perfectly." The Rate Calculator's 240.5/s is exactly the solver's 2 × 120.27 (F19, F21, F24).
 - **`plant_array`:** generic over the recipe. Each red plant gets cable by direct insertion from a cable plant beside it, two mirrored rows share one beacon row, and the cable plants reach copper with long-handed inserters (T7–T10). It's 42×21 before the pipeline's ends.
 - **The user's in-game copy cut resources in three places, now in the generator** (their exported string, diffed tile by tile: the generated block matches it entity for entity):
@@ -16,7 +34,7 @@
 - **1 output inserter a plant is enough with the reset** (user, in-game, 2026-10-12). The harness's growth bar had failed it on 4 items, which over 6× the window turned out to be a 16-item hand's swing, not a backlog. The bar now allows for the biggest hand unloading a machine, and `optimise` picks 1 a plant (8 stack inserters fewer).
 - **Tests:** 631 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 140 s).
 
-**2026-10-12 (later): M2 piece F, the optimiser, is built on branch `v2-m2-f`. `blueprint-smith optimise` turns "fill a turbo belt of green circuits" into an 11×11 blueprint that passes the harness, and it worked in the user's game. That completes M2's definition of done; merging F is what's left.**
+**2026-10-12 (later): M2 piece F, the optimiser, is built on branch `v2-m2-f`. `blueprint-smith optimise` turns "fill a turbo belt of green circuits" into an 11×11 blueprint that passes the harness, and it worked in the user's game. That completes M2's definition of done. F is merged (PR #7).**
 - **In-game spot-check (2026-10-12):** "It worked well." The user's screenshot shows both output lanes full, the north copper inserter feeding the cable plant, and the single iron inserter keeping up.
 - **The user's tweak, now in the generator (T5):** the stub inserters sit at the east end of the plant's top edge, and the stub starts under the first one. That's 3 belt tiles instead of 5. `check_flow` enforces it, with mutation tests.
 - **Scope (user):** the optimiser and a second layout, built together by two sub-agents in parallel.
@@ -59,21 +77,10 @@
 - **Calibration:** iron 15/s, copper 30/s and both steel samples hit exactly their target with every furnace working. The pre-T1 copper layout fills only one lane, and unwired poles fail with `no_power`. These match the in-game results.
 - **M2 plan (`docs/m2-plan.md`):** the target is 240 green circuits/s on a stacked turbo belt from legendary electromagnetic plants. One legendary plant with 2 legendary beacons makes about 250/s, so the block is limited by inserters and belts, not machines. The machine bar is decided: a machine fails only when it's blocked on output.
 
-**2026-10-11: generators. `smelting_column` is done (3 of 3 samples in-game) and `steel_column` has 1 of 3.**
-- Python package `blueprint_smith` on **factorio-draftsman 3.3.1**. CLI: `build|decode|types|evaluate|install-server`. `pipeline.build(spec)` turns every draftsman warning into a failure, wires the poles, checks the declared ports, and runs the generic and per-generator checks.
-- `smelting_column` (`count` or `rate`, electric furnaces) uses the user's lane-balancing layout. A west-priority splitter and a side-load every 2 furnaces fill both plate lanes (T1 in `docs/techniques.md`). Confirmed in-game on all 3 samples:
-  - `examples/smelting_column.json`: iron, 15/s, yellow belt, 24 furnaces. Both lanes are full and every furnace unloads.
-  - `examples/smelting_column_copper.json`: copper, 30/s, red belt, 48 furnaces. The splitter priority came out on the west half.
-  - `examples/smelting_column_steel.json`: steel, 3/s from 15 iron plates/s, 24 furnaces. Every furnace unloads.
-- `steel_column` (`count` of pairs or `rate` of steel/s): each iron furnace hands its plates by direct insertion to the steel furnace beside it (T4). `examples/steel_column.json` makes 3 steel/s from a full yellow belt of ore with 24 pairs, and every furnace ran in-game. Code shared by both columns lives in `generators/columns.py`.
-- `docs/techniques.md` is the catalog of the user's quality bar (P), game mechanics (F) and layout techniques (T), each with its in-game status. `CLAUDE.md` makes reading it a precondition of any generator work.
-- Public GitHub repo `CommanderBosko/blueprint-smith` (MIT), branch `main`, SSH remote. No linter is configured.
-
 ## Current Goals
 
-- **Next:**
-  - Commit `v2-red-circuits` and open its PR, when the user asks.
-  - Pick the next milestone with the user.
+- **Next:** generalise `plant_array` to any machine and any in-block intermediate (the user's pick, 2026-10-12). Start by resuming its scoping interview.
+- **CI done (2026-10-12):** every push to `main` and every PR runs lint, the quick tests and the full harness suite. Snapshots pin each in-game-confirmed layout.
 - **M2b done (2026-10-12):** "fill a turbo belt of red circuits" goes through `optimise` to a passing plant array, and it ran at 240/s in the user's game.
 - **M2 done (2026-10-12):** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and that pick worked in the user's game.
 - **Long term:** M3 (learning from existing blueprints) and M4 (freeform placement) are stretch goals. The logistics and power & fluids generators are paused.
@@ -81,6 +88,12 @@
 
 ## Recent Decisions
 
+- **The next milestone is generalising `plant_array`** (user, 2026-10-12). The alternatives passed over were unpausing fluids, scoping M3/M4, and having the harness load the user's mods.
+- **The harness job runs on a self-hosted runner** (2026-10-12), because factorio.com answers 403 to the server download from GitHub's runners. Lint and the quick tests stay on GitHub's runners.
+- **Runner jobs can't act as the user** (from the NixOS session's review of the runner spec, agreed 2026-10-12). A fork's PR can edit `ci.yml`, including an `if:` guard, so the guard alone isn't enough. Jobs therefore run as a sandboxed dynamic user that sees only a read-only server dir, and fork PRs need approval. That's why tests must never find game files through `Path.home()`.
+- **A skipped harness test fails CI** (`BPS_REQUIRE_HARNESS=1`). Without the server, a plain `pytest` passed with all 55 harness tests skipped.
+- **Confirmed layouts are pinned by golden snapshots.** A change can keep every property test green and still move a confirmed block, and the snapshots catch that. Re-pinning means re-testing in-game too (`docs/techniques.md` checklist item 8).
+- **Ruff gates errors only** (`E4,E7,E9,F`). Pyright isn't gated, because most of its ~78 errors come from draftsman's types.
 - **The output-growth bar allows for the biggest hand unloading a machine** (user, 2026-10-12, choosing to make 1 output inserter a plant the default after it worked in-game): a flowing machine's result slots swing by up to that hand.
 - **Every input gets a display panel showing its item, 2 tiles out with one free tile between** (P3, user, 2026-10-12, from a screenshot of their own build). The pipeline adds them; they're left out of port tiles, the footprint and the harness's box.
 - **Every belt output ends in a lane balancer** (P4/T11, user, 2026-10-12): a splitter, then both halves side-load the middle belt from opposite sides. The pipeline adds it and moves the output port to its end. Generator checks judge the generator's layout before the ends are added.
@@ -133,6 +146,6 @@
 
 ## Next Steps
 
-1. Commit `v2-red-circuits` and open its PR, when the user asks (M2b done).
-2. Choose the next milestone with the user.
+1. Resume the `/interview` for generalising `plant_array` at wave 1: the why, the done-test recipe, the rate, and whether the red block must stay identical entity for entity. Don't build anything until the brief is confirmed.
+2. With the user's OK: `CLAUDE.md`'s Status still says "Next: commit and PR `v2-red-circuits`", which was merged as PR #9, and doesn't mention CI as done.
 3. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).
