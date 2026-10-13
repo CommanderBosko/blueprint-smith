@@ -661,8 +661,7 @@ def _flip(d):
 
 
 def _notes(rate, recipe, row, east, s: Sizing, quality) -> list[str]:
-    p_beacons, k_beacons = beacon_counts(row, east)
-    made = {p: m.products[recipe.product] for p, m in s.products.items()}
+    p_beacons, _ = beacon_counts(row, east)
     cable = {k: m.products[recipe.intermediate] for k, m in s.intermediates.items()}
     notes = [
         f"{len(row.products)} {recipe.product} plants and {len(row.intermediates)} {recipe.intermediate} plants per "

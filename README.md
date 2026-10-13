@@ -48,7 +48,7 @@ To judge blueprints in the headless harness:
 .venv/bin/blueprint-smith evaluate examples/steel_column.json
 ```
 
-Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests with `.venv/bin/pytest -q`. The harness tests skip when the server isn't installed.
+Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests with `.venv/bin/pytest -q`. The harness tests skip when the server isn't installed. CI runs `ruff check` and the non-harness tests on GitHub's runners. The full suite runs on a self-hosted runner, because factorio.com refuses the server download from GitHub's runners.
 
 ## Project Structure
 

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install ruff
+      - run: ruff check
+
+  quick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest -q -rs -m "not harness"
+
+  harness:
+    # factorio.com answers 403 to the headless server download from GitHub-hosted runners, so the full suite runs
+    # on a self-hosted runner that already has the server. Never for a fork's PR: the repo is public, and the runner
+    # is a real machine.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, factorio]
+    timeout-minutes: 20
+    env:
+      # A skip fails the run (tests/conftest.py), so the harness tests can't quietly drop out.
+      BPS_REQUIRE_HARNESS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]"
+      - run: .venv/bin/pytest -q -rs

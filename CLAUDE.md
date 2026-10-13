@@ -75,7 +75,13 @@ All via the venv (`.venv/bin/...`); the package is installed editable with `pip 
 - Evaluate in the headless harness: `.venv/bin/blueprint-smith evaluate SPEC` (verdict on stdout), or `build SPEC --evaluate` (prints the string only if the verdict passes). `--research` defaults to the research the spec's type registers (`circuit_block`: all; the furnace columns: none), and `--keep-run` keeps the run dir. Exit 3 means the harness couldn't run.
 - Optimise: `.venv/bin/blueprint-smith optimise REQUEST`, where REQUEST is JSON such as `{"item": "electronic-circuit", "rate": 240}`. It prints the report to stderr and the winner's string to stdout; options are `-o FILE`, `--spec-out FILE`, `--jobs N`, `--max-runs N` and `--keep-run`. Exit 1 means no variant passed. 240/s takes about 17 s. `blueprint-smith install-server` downloads the 2.0.77 headless server into `~/.cache/blueprint-smith/`, and `$BPS_FACTORIO_SERVER` overrides its path.
 - Decode: `.venv/bin/blueprint-smith decode STRING` or `@file`. List types: `.venv/bin/blueprint-smith types`.
-- No linter is configured. `pyrightconfig.json` points editors at `.venv` and `src/`.
+- Confirmed layouts: `tests/test_confirmed.py` checks every in-game-confirmed block against its golden snapshot in `tests/fixtures/confirmed/`, entity for entity. After an intended layout change, re-pin with `BPS_UPDATE_SNAPSHOTS=1 .venv/bin/pytest -q tests/test_confirmed.py`, then re-test in-game (`docs/techniques.md` checklist item 8).
+- Lint: `.venv/bin/ruff check`. It checks errors only (`E4,E7,E9,F` in `pyproject.toml`; `spike/` is excluded). `pyrightconfig.json` points editors at `.venv` and `src/`, but pyright isn't gated: most of its ~78 errors come from draftsman's types.
+- CI (`.github/workflows/ci.yml`) runs on every push to `main` and every PR:
+  - `lint` and `quick` (`pytest -m "not harness"`) run on GitHub-hosted runners.
+  - `harness` runs the full suite on a self-hosted runner labelled `factorio` (the user's NixOS machine), because factorio.com answers 403 to the server download from GitHub's runners (2026-10-12). It never runs for a fork's PR.
+  - The runner is defined in `~/NixOS/hosts/gaming/github-runner.nix`. Jobs run as a sandboxed dynamic user with no access to `/home`, apart from the server dir mounted read-only. They get the server through `$BPS_FACTORIO_SERVER`, so tests must never find game files through `Path.home()`.
+  - `harness` sets `BPS_REQUIRE_HARNESS=1`. With that set, `tests/conftest.py` fails any skipped test, so a missing server can't turn the harness tests into silent skips. Set it locally to check the same thing.
 
 ## Code architecture (`src/blueprint_smith/`)
 

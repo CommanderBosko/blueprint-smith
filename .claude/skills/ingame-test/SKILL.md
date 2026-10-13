@@ -37,7 +37,11 @@ Run from the project root. Choose the phase from what the user said. "Test this 
    Use today's date (`date +%F`) and the user's words or what the screenshot shows. If the harness verdict ran, also note in H1 whether the game agreed with it.
 5. **If the user reports a failure or teaches a correction,** add or update the technique entry and record how it was confirmed (e.g. "the user's screenshot, YYYY-MM-DD"). Then enforce it in code: an invariant in the generator's `check_flow` (or in `checks.py` if it's generic), plus a mutation test that breaks the layout on purpose and expects the build to fail. Run `.venv/bin/pytest -q -m "not harness"`, then `.venv/bin/pytest -q`. The project `CLAUDE.md` "Techniques Catalog" section requires this.
 6. **Update the status docs.** Edit the generator's bullet under `## Status` in the project `CLAUDE.md` (e.g. "confirmed in-game YYYY-MM-DD", or what failed) and the matching line in `project-state.md`.
-7. **Report** each entry changed (old status, then new), any check and mutation test added with the test result, and the two status-doc lines. Don't commit unless the user asks.
+7. **On a pass, pin the layout** in `tests/fixtures/confirmed/` (`docs/techniques.md` checklist item 8):
+   - If its spec already has a fixture, run `BPS_UPDATE_SNAPSHOTS=1 .venv/bin/pytest -q tests/test_confirmed.py` and update that fixture's `confirmed` line with the date and what was seen.
+   - For a new block, first add a fixture with its `spec`, a `confirmed` line and `"entities": []`, then run the same command.
+   - Then run `.venv/bin/pytest -q tests/test_confirmed.py` without the variable to check it passes.
+8. **Report** each entry changed (old status, then new), any check and mutation test added with the test result, the two status-doc lines, and the snapshot pinned. Don't commit unless the user asks.
 
 ## Gotchas
 
