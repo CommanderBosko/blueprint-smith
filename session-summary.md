@@ -1,3 +1,34 @@
+## Session: 2026-10-13 — M2c scoped: the plant array for any machine
+
+_Older entries are in [session-summary-archive.md](session-summary-archive.md)._
+
+**Focus**: Resume and finish the scoping interview for generalising `plant_array`. The user asked for no building tonight.
+
+### What changed (and why)
+- **M2c brief** (`docs/m2c-brief.md`): `optimise` with just an item and a rate, for any non-fluid electric machine and any in-block intermediate made from one item. It keeps today's P > K < P layout, with 0 to 2 near items. Summarised in `PROJECT_BRIEF.md`'s v2 section.
+- **Done test:** automation science at 240/s passes the harness and the user's in-game check. 7 proof requests (assembler 1 and 2, electric furnace, a mixed assembler/furnace row, the foundry, stone and steel furnaces) pass the harness at 4+ product machines a row, and every in-scope recipe builds statically.
+- **`CLAUDE.md` Status:** points at M2c. The stale "commit and PR `v2-red-circuits`" line is fixed (it merged as PR #9).
+
+### Decisions
+- **Why M2c:** toward the v2 goal, more products without a generator per recipe.
+- **Overrides:** the user went wider than two of my recommendations. The machines are any non-fluid electric machine, and the optimiser tries every qualifying intermediate, smelted ones included, so a pick may ask for ore. Footprint picks the machine.
+- **Burners:** stone and steel furnaces only on request, never a default.
+- **Regression:** the red and green blocks and their picks stay identical. The green pick stays `circuit_block`'s 11×11.
+- **Deferred, not dropped:** "You're going to have to be ready for anything." Fluids, fission, fusion, Gleba, intermediates made from 2+ items and chains of them, arrays with no intermediate, 3+ near items, and a second layout are all required future milestones. M2c delivers a readiness table that maps each one to the code it would change.
+
+### Issues / surprises
+- **The review caught three wrong claims** in my first draft, each already settled in `docs/techniques.md`: foundry base productivity applies to belts (F21), beacons don't reach assembler 1 or burner furnaces (F24), and the harness hasn't matched every in-game result (the pre-T1 steel xfail).
+- **It also found two code facts:** prod-3 is ejected from recipes that refuse productivity (F25), and `check_flow`'s `_roles` can't see furnaces, which carry no recipe (F13).
+- **The first review hit the account's session limit,** and it ran again after the reset.
+- **Secret scan** (project `/secret-scan`): clean across the tree and all 38 commits.
+
+### Next session
+- Write the M2c plan and get the user's OK before any code.
+
+**Commits**: `912ec6b` plus this close (2 commits)
+
+---
+
 ## Session: 2026-10-12 (close) — Optimiser, red circuit plant array, CI; next milestone picked
 
 **Focus**: Catch the docs up to `main`. Several sessions since the last close were never closed, and the closing session itself changed no code.
@@ -124,30 +155,3 @@ This close spans several sessions since the previous close, which ran before `gi
 
 ---
 
-## Session: 2026-09-29 — Scoping, research, draftsman spike, first generator
-
-**Focus**: Decide whether Claude can craft Factorio blueprints, pin down scope, and get a working generator pipeline.
-
-### What changed (and why)
-- Interviewed for scope; an independent reviewer found the first brief weak (untestable "done", too much for v1). Revised into `PROJECT_BRIEF.md`: production lines first, two-tier acceptance, mods as a stretch goal.
-- Researched the format, data extraction, geometry, ratio math and libraries with 16 parallel reviewers; saved to memory. Main result: build on factorio-draftsman rather than from scratch.
-- Ran a spike, then scaffolded `blueprint_smith` (CLI, pipeline, checks, `smelting_column` generator, 14 tests).
-
-### Decisions
-- draftsman **3.3.1**, not 4.0.0 (4.0.0 can't load 2.0.77 data; details in `project-state.md`).
-- Draftsman warnings become build failures.
-- Generators own their flow checks after a mutation test showed reversed inserters slipping through.
-
-### Issues / surprises
-- `Blueprint(s)` treats the string as the label; use `Blueprint.from_string(s)`.
-- Wiki said underground reach 4/6/8; prototype data says 5/7/9.
-- Yellow-belt plate output tops out at 12 furnaces because inserters only fill one lane.
-- Project isn't a git repo, so nothing was committed or pushed at close.
-
-### Next session
-- Import the smelting column in-game and report results; fix what breaks.
-- Choose the next generator; test mods; `git init`.
-
-**Commits**: none (not a git repo)
-
----

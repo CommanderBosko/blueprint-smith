@@ -4,6 +4,12 @@
 
 _Older blocks are in [project-state-archive.md](project-state-archive.md)._
 
+**2026-10-13 (close): M2c is scoped. The user confirmed its brief (`docs/m2c-brief.md`) after an interview and an independent review. No code changed.**
+- **M2c:** `plant_array` for any machine and any one-item intermediate. `optimise` with just an item and a rate tries each capable electric machine (assembler 1/2/3, EM plant, electric furnace, the foundry for belts) and every one-item ingredient that can be made in-block, and footprint picks. Stone and steel furnaces only on request, with fuel on a belt.
+- **Done test:** `optimise {"item": "automation-science-pack", "rate": 240}` passes the harness and the user's in-game check. Seven proof requests pass the harness at 4+ product machines a row, and every in-scope recipe builds statically. The red and green blocks and their picks don't change.
+- **Docs:** `PROJECT_BRIEF.md`'s v2 section has an M2c summary and done criteria. `CLAUDE.md`'s Status points at M2c, and its stale "commit and PR `v2-red-circuits`" line is fixed.
+- **Tests:** unchanged, 644 pass and 1 is a strict xfail (no code touched).
+
 **2026-10-12 (close): M2, M2b and CI are all merged to `main` (`6f24bcf`), and CI is green. The user picked the next milestone, generalising `plant_array`, but paused its scoping interview before the first question.**
 - **Merged since the last close** (all with merge commits; only `main` is left, locally and on GitHub):
   - #6: the project's `/ingame-test` skill, plus a tighter `/secret-scan`.
@@ -69,17 +75,10 @@ _Older blocks are in [project-state-archive.md](project-state-archive.md)._
   - It also fails if its output buffer grows.
   - Idle and unpowered time are reported, not judged (P2).
 
-**2026-10-11 (close): v2 milestone 1, the headless harness, is merged to `main`. Milestone 2 is planned but not started.**
-- `main` is at `080de55`, the merge of PR #1 (steel_column, the harness and the M2 plan), plus `c0d4def`, a project-local `/secret-scan` skill. Branch `v2-m1-harness` is deleted locally and on GitHub. Tests: 187 pass and 1 is a strict xfail (`.venv/bin/pytest -q`, about 38 s).
-- **The harness:** `blueprint-smith evaluate SPEC` and `build --evaluate` run a blueprint in the Linux 2.0.77 headless server (`~/.cache/blueprint-smith/`, fetched by `install-server`). A run takes about 6 s, and several can run side by side. See `docs/techniques.md` H1 and `docs/m1-harness-plan.md`.
-  - **What fails a blueprint (amended P2):** crafted output under 98% of target, a machine under 95% working, a machine whose output backs up, or output that never reaches the belt end.
-  - Research defaults to none so the measurements match `ratios.py`. `--research all` is available.
-- **Calibration:** iron 15/s, copper 30/s and both steel samples hit exactly their target with every furnace working. The pre-T1 copper layout fills only one lane, and unwired poles fail with `no_power`. These match the in-game results.
-- **M2 plan (`docs/m2-plan.md`):** the target is 240 green circuits/s on a stacked turbo belt from legendary electromagnetic plants. One legendary plant with 2 legendary beacons makes about 250/s, so the block is limited by inserters and belts, not machines. The machine bar is decided: a machine fails only when it's blocked on output.
-
 ## Current Goals
 
-- **Next:** generalise `plant_array` to any machine and any in-block intermediate (the user's pick, 2026-10-12). Start by resuming its scoping interview.
+- **Next: M2c** (`docs/m2c-brief.md`, confirmed 2026-10-13): `plant_array` for any non-fluid machine and any one-item intermediate. Write its plan first.
+- **Deferred, each required eventually** (user: "You're going to have to be ready for anything"): fluids, fission, fusion, Gleba, intermediates made from 2+ items and chains of them, arrays with no intermediate, 3+ near items, and a second plant-array layout.
 - **CI done (2026-10-12):** every push to `main` and every PR runs lint, the quick tests and the full harness suite. Snapshots pin each in-game-confirmed layout.
 - **M2b done (2026-10-12):** "fill a turbo belt of red circuits" goes through `optimise` to a passing plant array, and it ran at 240/s in the user's game.
 - **M2 done (2026-10-12):** "fill a turbo belt of green circuits" goes through `optimise` to a passing blueprint, and that pick worked in the user's game.
@@ -88,6 +87,14 @@ _Older blocks are in [project-state-archive.md](project-state-archive.md)._
 
 ## Recent Decisions
 
+- **M2c's scope** (user, 2026-10-12/13, every decision confirmed explicitly; full list in `docs/m2c-brief.md`):
+  - **Why:** toward the v2 goal, plain-word requests for more products without a generator per recipe.
+  - **Machines:** any non-fluid electric machine. I'd recommended just assembler 3 + EM plant. Burner furnaces only when asked, never a default. P and K may be different machines and sizes.
+  - **In-block intermediate:** the optimiser tries every qualifying one-item ingredient, smelted ones included, against my recommendation of plates on belts. So the science pick may ask for copper ore, and done 1 doesn't pin gears.
+  - **Machine:** footprint picks, v2's rule. Speed-3 goes in machines whose recipe refuses productivity (F25).
+  - **Layout:** stays P > K < P. Whether to add a second layout (one K feeding many) is decided from a comparison report, and if it comes, it's the next milestone.
+  - **Regression:** existing confirmed fixtures, the red pick and the green pick (`circuit_block`'s 11×11) don't change. A science fixture is added after the in-game check.
+  - **Proof:** 7 harness requests at 4+ product machines a row, a static build of every in-scope recipe, and only science in-game.
 - **The next milestone is generalising `plant_array`** (user, 2026-10-12). The alternatives passed over were unpausing fluids, scoping M3/M4, and having the harness load the user's mods.
 - **The harness job runs on a self-hosted runner** (2026-10-12), because factorio.com answers 403 to the server download from GitHub's runners. Lint and the quick tests stay on GitHub's runners.
 - **Runner jobs can't act as the user** (from the NixOS session's review of the runner spec, agreed 2026-10-12). A fork's PR can edit `ci.yml`, including an `if:` guard, so the guard alone isn't enough. Jobs therefore run as a sandboxed dynamic user that sees only a read-only server dir, and fork PRs need approval. That's why tests must never find game files through `Path.home()`.
@@ -146,6 +153,6 @@ _Older blocks are in [project-state-archive.md](project-state-archive.md)._
 
 ## Next Steps
 
-1. Resume the `/interview` for generalising `plant_array` at wave 1: the why, the done-test recipe, the rate, and whether the red block must stay identical entity for entity. Don't build anything until the brief is confirmed.
-2. With the user's OK: `CLAUDE.md`'s Status still says "Next: commit and PR `v2-red-circuits`", which was merged as PR #9, and doesn't mention CI as done.
+1. Write the M2c plan (like `docs/red-circuits-plan.md`): numbers from the solver for science and each proof request, the generalised geometry, how fuel reaches burner Ks, furnace roles in `check_flow`, a work breakdown with parallel pieces, and a verification plan. Get the user's OK before any code.
+2. Settle in the plan the brief's open risks: mixed machine sizes from 2×2 to 5×5 while the red block stays identical, inserter rates measured only for EM plants, and the optimiser's run cap with many more variants.
 3. For the user, in-game: re-check copper 30/s for blocked bottom furnaces, and run 2 more `steel_column` samples (a full red belt of ore at 6 steel/s with 48 pairs, and a small odd count such as 5 pairs).

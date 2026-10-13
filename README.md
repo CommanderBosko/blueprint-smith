@@ -10,7 +10,7 @@ Four generators work in-game:
 - `circuit_block`: 240 green circuits/s.
 - `plant_array`: 240.5 red circuits/s.
 
-`blueprint-smith optimise` turns a request like "240 green circuits/s" or "240 red circuits/s" into the smallest blueprint that passes the headless harness. CI lints and runs the full suite, harness included, on every push and PR. The next milestone is generalising `plant_array` to other machines and intermediates. For detail, see `project-state.md`; for history, `session-summary.md`.
+`blueprint-smith optimise` turns a request like "240 green circuits/s" or "240 red circuits/s" into the smallest blueprint that passes the headless harness. CI lints and runs the full suite, harness included, on every push and PR. The next milestone, M2c, generalises `plant_array` to any non-fluid machine and any in-block intermediate made from one item. Its scope is confirmed in `docs/m2c-brief.md`, and its plan comes next. For detail, see `project-state.md`; for history, `session-summary.md`.
 
 ## Features
 
@@ -68,6 +68,8 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
 
 ## Recent Changes
 
+- **2026-10-13:**
+  - M2c scoped: `plant_array` for any machine and any one-item intermediate (`docs/m2c-brief.md`). No code changes.
 - **2026-10-12 (evening):**
   - The optimiser: `blueprint-smith optimise` (PR #7).
   - Red circuits on the generic `plant_array`, confirmed in-game at 240.5/s (PR #9).
@@ -79,12 +81,6 @@ Use `factorio-draftsman<4`: version 4.x cannot load 2.0.x game data. Run tests w
   - `effects.py` solver and new generic checks.
   - Measured legendary stack-inserter rates.
   - `circuit_block`, confirmed in-game at 240/s.
-- **2026-10-11 (afternoon):**
-  - Lane-balanced smelting column: all 3 samples pass in-game.
-  - New `steel_column` generator.
-  - Headless evaluation harness (v2 milestone 1).
-  - Plan for milestone 2.
-  - Spec validation fixes and a pole-reach fix.
 
 ## Roadmap
 
@@ -92,9 +88,10 @@ v2 is a blueprint optimizer. You ask for something like "fill a turbo belt of gr
 - Milestone 1, the harness, is done.
 - Milestone 2, the solver, checks, measured primitives, green-circuit block and optimiser (`blueprint-smith optimise`), is done. The optimiser's pick worked in-game.
 - Milestone 2b, red circuits on a generic plant array, is done and confirmed in-game.
-- Next: generalise the plant array to any machine and any in-block intermediate.
+- Next: M2c, the plant array for any non-fluid machine and any one-item in-block intermediate (`docs/m2c-brief.md`). Automation science at 240/s is its done test.
+- Fluids, fission, fusion and Gleba are deferred milestones, needed eventually.
 - Learning from existing blueprints and freeform placement are stretch goals.
-- Logistics and power & fluids generators are paused.
+- The hand-written logistics and power & fluids generators are paused.
 
 See `PROJECT_BRIEF.md`.
 
