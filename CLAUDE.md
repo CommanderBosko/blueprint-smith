@@ -49,12 +49,15 @@ Scaffolded around draftsman 3.3.1 with four generators:
 - Piece F, the optimiser, is built on branch `v2-m2-f` (2026-10-12). `blueprint-smith optimise` picks the 11×11 north layout for 240/s, and that pick worked in-game on 2026-10-12. That completes M2's definition of done.
 - Piece F is merged (PR #7). A follow-up on branch `verdict-growth-exemption` exempts machines that feed only other machines from the output-growth check (user, 2026-10-12).
 - M2 is done.
-- **Now: M2b, red circuits on a generic plant array** (`docs/red-circuits-plan.md`, scoped with the user 2026-10-12), on branch `v2-red-circuits`.
+- **M2b, red circuits on a generic plant array** (`docs/red-circuits-plan.md`, scoped with the user 2026-10-12), on branch `v2-red-circuits`.
   - Pieces A–C are built: `blueprint-smith optimise` picks a 42×21 two-row block for 240/s (237.80/s in the harness, lanes 119/119).
   - The user built it in-game on 2026-10-12, cut resources in a couple of places and added an output balancer. Every block now gets input labels (P3) and an output lane balancer (P4) from the pipeline.
   - The generator now has the user's three changes, matching their copy entity for entity (238.09/s headless).
   - Piece D: the regenerated block ran at 240.5/s in-game with both lanes full (2026-10-12). **M2b is done.**
-  - **Next:** commit and PR `v2-red-circuits` when the user asks, then pick the next milestone with them.
+  - Merged as PR #9 (2026-10-12).
+- **Next: M2c, the plant array for any machine and any one-item intermediate** (`docs/m2c-brief.md`, scoped with the user and independently reviewed 2026-10-12/13).
+  - Done test: `optimise {"item": "automation-science-pack", "rate": 240}`, plus seven proof requests across the other machines.
+  - Next step: write its plan (like `docs/red-circuits-plan.md`). No code yet.
 - M3 and M4 remain stretch goals.
 
 Logistics and power & fluids generators are paused.

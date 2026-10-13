@@ -85,6 +85,11 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
   - Green circuits, plastic and copper plates come in on belts, and the block makes its own copper cable.
   - The generator is generic: a beaconed array of plants parametrised by recipe, with an optional in-block intermediate (cable) handed over by direct insertion. Red circuits are its first recipe and its done test.
   - Layout approved by the user 2026-10-12: two mirrored rows around one shared beacon row. Each row has a green|plastic belt, and a copper belt one row further out that the cable plants reach with long-handed inserters. The two output belts merge into one.
+- **M2c: the plant array for any machine and any one-item intermediate** (*scoped with the user 2026-10-12/13, after M2b; independently reviewed*). Full brief: `docs/m2c-brief.md`.
+  - `{"item", "rate"}` is enough. The optimiser tries each capable electric machine (assembler 1/2/3, EM plant, electric furnace, foundry for belts) and every one-item ingredient that can be made in-block, smelted ones included, and footprint picks. A request may override the machine, the intermediate and quality.
+  - Stone and steel furnaces only on request, with fuel on a belt. P and K may be different machines and sizes. 0 to 2 near items. Speed-3 in machines whose recipe refuses productivity.
+  - Layout stays P > K < P. It also delivers a comparison report (K use, and an estimate for one K feeding many) and a readiness table for the deferred milestones.
+  - Deferred, each a required future milestone: fluids, fission, fusion, Gleba, intermediates made from 2+ items and chains of them, arrays with no intermediate, 3+ near items, and a second layout.
 
 ## Nice-to-haves / stretch
 - The harness loads the user's enabled mods, if that isn't too difficult. Vanilla + Space Age is the must.
@@ -94,7 +99,7 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
 ## Out of scope
 - RCON or any connection to the user's live game or saves.
 - City-block planning, and chain-to-raw requests until logistics exists.
-- Gleba and other planet builds (bioflux, spoilage, nutrients) until the Nauvis types work.
+- Gleba and other planet builds (bioflux, spoilage, nutrients) until the Nauvis types work. *Amended 2026-10-13 (M2c):* Gleba, fluids, fission and fusion are deferred, not dropped: each is a required future milestone.
 - New hand-written logistics or power & fluids generators (paused).
 - ML for its own sake.
 
@@ -120,6 +125,12 @@ Better blueprints are the goal; ML is optional. Module and beacon counts come fr
 - **M2b:**
   - `blueprint-smith optimise` on `{"item": "advanced-circuit", "rate": 240}` returns a plant-array blueprint that passes the harness: at least 98% of 240/s, both output lanes full, no machine failing the machine bar, with everything researched.
   - The user's in-game spot-check of the pick agrees with the harness.
+- **M2c** (details in `docs/m2c-brief.md`):
+  - `blueprint-smith optimise` on `{"item": "automation-science-pack", "rate": 240}` passes the harness under M2b's bar, with whichever intermediate wins, and the user's in-game check of the pick agrees.
+  - Seven proof requests (assembler 1 and 2, electric furnace, a mixed assembler/furnace row, the foundry, and stone and steel furnaces) each pass the harness at a rate needing 4+ product machines a row.
+  - Every in-scope recipe builds and passes the static checks.
+  - The existing confirmed fixtures, the red pick and the green pick (`circuit_block`'s 11×11) don't change.
+  - The user decides on the second layout from the comparison report, and signs off the readiness table.
 
 ## Risks
 - **Running the server:** it needs its own write directory, and an unattended run needs a start-run-exit flow.
